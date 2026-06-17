@@ -16,11 +16,6 @@ interface Product {
   createdAt: string;
 }
 
-const MANAGEMENT_PIN = {
-  "5678": "ผู้จัดการร้าน (พี่เบน)",
-  "1111": "ผู้บริหารระดับสูง",
-};
-
 export default function InventoryPage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
@@ -29,9 +24,8 @@ export default function InventoryPage() {
   const [filterMode, setFilterMode] = useState<string>("ALL");
   const [isDeckExpanded, setIsDeckExpanded] = useState(false);
 
-  // รายการหมวดหมู่และโซน
-  const [zonesList, setZonesList] = useState<string[]>(["โซน 2 (กลางบ้าน)", "โซน 3 (หน้าบ้าน)"]);
-  const [categoriesList, setCategoriesList] = useState<string[]>(["ของแห้งและเครื่องปรุง", "เส้น แป้ง และนม", "เครื่องดื่ม", "บรรจุภัณฑ์", "ทำความสะอาด", "ห้องน้ำ"]);
+  const [zonesList, setZonesList] = useState<string[]>([]);
+  const [categoriesList, setCategoriesList] = useState<string[]>([]);
 
   const [showAddZoneInput, setShowAddZoneInput] = useState(false);
   const [newZoneName, setNewZoneName] = useState("");
@@ -40,13 +34,12 @@ export default function InventoryPage() {
 
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState(""); 
-  
+  const [authMode, setAuthMode] = useState("");
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [authPin, setAuthPin] = useState("");
   const [authError, setAuthError] = useState("");
 
-  // Form Input States
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
@@ -54,23 +47,20 @@ export default function InventoryPage() {
   const [stock, setStock] = useState("");
   const [minStock, setMinStock] = useState("");
   const [unit, setUnit] = useState("แพ็ค");
-  const [imageFile, setImageFile] = useState(""); 
+  const [imageFile, setImageFile] = useState("");
 
   const [formCreatorPin, setFormCreatorPin] = useState("");
   const [formPinError, setFormPinError] = useState("");
   const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
 
-  // ✅ [📌 ฟีเจอร์หลัก] ฟังก์ชันเรียกข้อมูลสินค้าจริงจากหลังบ้าน Supabase ทันทีที่เปิดหน้าจอ
   const fetchProductsFromDatabase = async () => {
     try {
       const res = await fetch("/api/products");
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
-        
-        // อัปเดตรายชื่อโซนและหมวดหมู่ที่มีอยู่ในฐานข้อมูลปัจจุบันเพิ่มเข้าไปใน Select
-        const uniqueZones = Array.from(new Set([...zonesList, ...data.map((p: Product) => p.zone)]));
-        const uniqueCats = Array.from(new Set([...categoriesList, ...data.map((p: Product) => p.category)]));
+        const uniqueZones = Array.from(new Set(data.map((p: Product) => p.zone).filter(Boolean))) as string[];
+        const uniqueCats = Array.from(new Set(data.map((p: Product) => p.category).filter(Boolean))) as string[];
         setZonesList(uniqueZones);
         setCategoriesList(uniqueCats);
       }
@@ -121,7 +111,6 @@ export default function InventoryPage() {
     if (filterMode !== "ALL" && filterMode !== "LOW_STOCK" && filterMode !== "OUT_OF_STOCK" && p.zone !== filterMode) return false;
     if (filterMode === "OUT_OF_STOCK" && p.stock !== 0) return false;
     if (filterMode === "LOW_STOCK" && !(p.stock > 0 && p.stock <= p.minStock)) return false;
-
     const searchText = search.toLowerCase().trim();
     return p.name.toLowerCase().includes(searchText) || p.id.toLowerCase().includes(searchText);
   });
@@ -132,7 +121,7 @@ export default function InventoryPage() {
 
   const openCreateModal = () => {
     setEditingId(null); setName(""); setStock(""); setMinStock(""); setUnit("แพ็ค");
-    setZone(zonesList[0] || "โซน 2 (กลางบ้าน)"); setCategory(categoriesList[0] || "ของแห้งและเครื่องปรุง");
+    setZone(zonesList[0] || ""); setCategory(categoriesList[0] || "");
     setImageFile(""); setFormCreatorPin(""); setFormPinError(""); setIsFormModalOpen(true);
   };
 
@@ -144,21 +133,23 @@ export default function InventoryPage() {
     setSelectedProduct(product); setAuthPin(""); setAuthError(""); setAuthMode("DELETE"); setIsAuthModalOpen(true);
   };
 
-  // ✅ [📌 ฟีเจอร์หลัก] ฟังก์ชันบันทึกข้อมูลสินค้าจริง ยิงขึ้น API บันทึกตรงลงฐานข้อมูล Supabase คลาวด์
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    if (!MANAGEMENT_PIN[formCreatorPin as keyof typeof MANAGEMENT_PIN]) {
+    const verifyRes = await fetch("/api/employees/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: formCreatorPin }),
+    });
+    if (!verifyRes.ok) {
       setFormPinError("รหัสพนักงานไม่ถูกต้อง ไม่มีสิทธิ์ทำรายการบันทึก");
       return;
     }
 
     if (editingId) {
-      // โหมดแก้ไข (สำหรับเฟสถัดไป)
       alert("ระบบกำลังปรับปรุงช่องทางบันทึกแก้ไขความปลอดภัยหลังบ้าน");
     } else {
-      // สุ่มรันไอดีสินค้าใหม่แบบรันคิว
       const maxIdNum = products.reduce((max, p) => {
         const currentIdNum = parseInt(p.id.replace("PROD", ""), 10);
         return currentIdNum > max ? currentIdNum : max;
@@ -166,15 +157,13 @@ export default function InventoryPage() {
       const nextId = `PROD${String(maxIdNum + 1).padStart(3, "0")}`;
 
       try {
-        // ยิง POST ข้อมูลหาระบบหลังบ้าน Next.js -> Supabase
         const response = await fetch("/api/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id: nextId,
             name: name.trim(),
-            category,
-            zone,
+            category, zone,
             stock: Number(stock) || 0,
             minStock: Number(minStock) || 0,
             unit: unit.trim(),
@@ -183,9 +172,9 @@ export default function InventoryPage() {
         });
 
         if (response.ok) {
-          alert("📢 บันทึกสินค้าใหม่ลงสู่คลาวด์หลังบ้านสากล Supabase สำเร็จ!");
+          alert("📢 บันทึกสินค้าใหม่ลงสู่คลาวด์สำเร็จ!");
           setIsFormModalOpen(false);
-          fetchProductsFromDatabase(); // สั่งรีโหลดข้อมูลหน้าตารางให้เห็นแบบเรียลไทม์
+          fetchProductsFromDatabase();
         } else {
           alert("เกิดข้อผิดพลาดจากฝั่งเซิร์ฟเวอร์ ไม่สามารถบันทึกได้");
         }
@@ -195,9 +184,15 @@ export default function InventoryPage() {
     }
   };
 
-  const handleAuthVerification = (e: React.FormEvent) => {
+  const handleAuthVerification = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (MANAGEMENT_PIN[authPin as keyof typeof MANAGEMENT_PIN]) {
+    const verifyRes = await fetch("/api/employees/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: authPin }),
+    });
+
+    if (verifyRes.ok) {
       setIsAuthModalOpen(false);
       if (authMode === "DELETE" && selectedProduct) {
         alert("ฟังก์ชันการลบข้อมูลคลาวด์เปิดให้ตั้งค่าในสเต็ปความปลอดภัยถัดไป");
@@ -213,8 +208,7 @@ export default function InventoryPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 text-black font-sans antialiased pb-12">
-      
-      {/* TOP NAVIGATION BAR */}
+
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <div className="flex items-center gap-3">
@@ -233,10 +227,9 @@ export default function InventoryPage() {
       </header>
 
       <section className="mx-auto max-w-7xl px-6 py-8">
-        
-        {/* แผงสถิติแบบกดแล้วคลี่ออก-หุบเข้าได้เมื่อซ้อนกัน */}
+
         <div className="relative mb-6">
-          <div 
+          <div
             onClick={() => setIsDeckExpanded(!isDeckExpanded)}
             className="flex flex-nowrap md:grid md:grid-cols-5 gap-2 pb-3 overflow-x-auto scrollbar-none items-center cursor-pointer select-none"
           >
@@ -248,13 +241,11 @@ export default function InventoryPage() {
               const countZoneItems = products.filter((p) => p.zone === zoneName).length;
               const isActive = filterMode === zoneName;
               return (
-                <button 
+                <button
                   key={zoneName}
-                  type="button" 
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); setFilterMode(zoneName); }}
-                  className={`shrink-0 w-[200px] md:w-auto text-left rounded-2xl border bg-white p-4 shadow-sm flex items-center justify-between transition-all duration-300 md:transform-none md:ml-0 ${
-                    isActive ? "border-black ring-2 ring-black/5 scale-[1.02] z-10" : "border-gray-200 hover:border-gray-400 opacity-90"
-                  } ${!isDeckExpanded ? "-ml-14 md:ml-0" : "ml-0"}`}
+                  className={`shrink-0 w-[200px] md:w-auto text-left rounded-2xl border bg-white p-4 shadow-sm flex items-center justify-between transition-all duration-300 md:transform-none md:ml-0 ${isActive ? "border-black ring-2 ring-black/5 scale-[1.02] z-10" : "border-gray-200 hover:border-gray-400 opacity-90"} ${!isDeckExpanded ? "-ml-14 md:ml-0" : "ml-0"}`}
                 >
                   <div className="truncate">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate">{zoneName}</p>
@@ -277,19 +268,12 @@ export default function InventoryPage() {
           </p>
         </div>
 
-        {/* SEARCH & CREATE CONTAINER */}
         <div className="mb-6 flex gap-3">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
-            <input
-              type="text"
-              placeholder="พิมพ์คำค้นหาชื่อสินค้าหรือรหัสสินค้าวัตถุดิบเพื่อตรวจสอบทันที..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium outline-none focus:border-black focus:ring-2 focus:ring-gray-100 shadow-sm transition-all"
-            />
+            <input type="text" placeholder="พิมพ์คำค้นหาชื่อสินค้าหรือรหัสสินค้าวัตถุดิบเพื่อตรวจสอบทันที..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-white border border-gray-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium outline-none focus:border-black focus:ring-2 focus:ring-gray-100 shadow-sm transition-all" />
           </div>
           <button type="button" onClick={openCreateModal} className="rounded-2xl bg-black text-white px-6 font-bold text-sm hover:bg-gray-800 transition-all shadow-sm shrink-0 flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
@@ -297,7 +281,6 @@ export default function InventoryPage() {
           </button>
         </div>
 
-        {/* PRIMARY STOCK MASTER TABLE */}
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
@@ -315,19 +298,17 @@ export default function InventoryPage() {
                   <tr><td colSpan={5} className="py-12 text-center text-sm text-gray-400 font-medium">คลังสินค้าว่างเปล่า กรุณากดปุ่มเพิ่มสินค้าใหม่ด้านบน</td></tr>
                 ) : (
                   filteredProducts.map((p: Product) => {
-                    let ringColor = "border-gray-200"; 
-                    let borderHighlightStyle = "border-l-0"; 
-
+                    let ringColor = "border-gray-200";
+                    let borderHighlightStyle = "border-l-0";
                     if (Number(p.stock) === 0) {
-                      ringColor = "border-red-400 ring-2 ring-red-100 ring-offset-1"; 
-                      borderHighlightStyle = "border-l-4 border-l-red-500 bg-red-50/5 hover:bg-red-50/15"; 
+                      ringColor = "border-red-400 ring-2 ring-red-100 ring-offset-1";
+                      borderHighlightStyle = "border-l-4 border-l-red-500 bg-red-50/5 hover:bg-red-50/15";
                     } else if (Number(p.stock) <= Number(p.minStock)) {
-                      ringColor = "border-orange-400 ring-2 ring-orange-100/50"; 
-                      borderHighlightStyle = "border-l-4 border-l-orange-500 bg-orange-50/5 hover:bg-orange-50/15"; 
+                      ringColor = "border-orange-400 ring-2 ring-orange-100/50";
+                      borderHighlightStyle = "border-l-4 border-l-orange-500 bg-orange-50/5 hover:bg-orange-50/15";
                     } else {
-                      borderHighlightStyle = "hover:bg-gray-50/50"; 
+                      borderHighlightStyle = "hover:bg-gray-50/50";
                     }
-
                     return (
                       <tr key={p.id} className={`transition-all duration-150 ${borderHighlightStyle}`}>
                         <td className="whitespace-nowrap px-5 py-4 flex justify-center">
@@ -406,9 +387,13 @@ export default function InventoryPage() {
                     <button type="button" onClick={handleAddNewZone} className="rounded-xl bg-blue-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-blue-700">ยืนยัน</button>
                   </div>
                 )}
-                <select value={zone} onChange={(e) => setZone(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm font-medium outline-none focus:border-black focus:bg-white transition-all font-sans appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3D%22w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%236B7280%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:20px_20px] bg-[right_12px_center] bg-no-repeat">
-                  {zonesList.map((z) => <option key={z} value={z}>{z}</option>)}
-                </select>
+                {zonesList.length > 0 ? (
+                  <select value={zone} onChange={(e) => setZone(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm font-medium outline-none focus:border-black focus:bg-white transition-all font-sans">
+                    {zonesList.map((z) => <option key={z} value={z}>{z}</option>)}
+                  </select>
+                ) : (
+                  <input type="text" placeholder="กด + เพิ่มโซนใหม่ก่อน" value={zone} onChange={(e) => setZone(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
+                )}
               </div>
 
               <div>
@@ -424,9 +409,13 @@ export default function InventoryPage() {
                     <button type="button" onClick={handleAddNewCategory} className="rounded-xl bg-blue-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-blue-700">ยืนยัน</button>
                   </div>
                 )}
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm font-medium outline-none focus:border-black focus:bg-white transition-all font-sans appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3D%22w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%236B7280%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:20px_20px] bg-[right_12px_center] bg-no-repeat">
-                  {categoriesList.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                {categoriesList.length > 0 ? (
+                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm font-medium outline-none focus:border-black focus:bg-white transition-all font-sans">
+                    {categoriesList.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  <input type="text" placeholder="กด + เพิ่มหมวดหมู่ใหม่ก่อน" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -460,19 +449,7 @@ export default function InventoryPage() {
 
               <div className="pt-4 border-t border-dashed border-gray-200 bg-red-50/30 p-4 rounded-2xl border border-red-100">
                 <label className="text-xs font-bold text-red-600 block mb-1.5">รหัสยืนยันตัวตนพนักงาน (PIN 4 หลัก) *</label>
-                <input 
-                  type="password" 
-                  maxLength={4} 
-                  inputMode="numeric"
-                  placeholder="กรอกรหัสพนักงานเพื่อบันทึกรายการ" 
-                  value={formCreatorPin} 
-                  onChange={(e) => {
-                    setFormCreatorPin(e.target.value.replace(/\D/g, ""));
-                    setFormPinError("");
-                  }} 
-                  className="w-full rounded-xl border border-red-200 bg-white py-2.5 px-4 text-center font-sans font-bold tracking-widest text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:tracking-normal placeholder:font-normal placeholder:text-gray-400" 
-                  required 
-                />
+                <input type="password" maxLength={4} inputMode="numeric" placeholder="กรอกรหัสพนักงานเพื่อบันทึกรายการ" value={formCreatorPin} onChange={(e) => { setFormCreatorPin(e.target.value.replace(/\D/g, "")); setFormPinError(""); }} className="w-full rounded-xl border border-red-200 bg-white py-2.5 px-4 text-center font-sans font-bold tracking-widest text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:tracking-normal placeholder:font-normal placeholder:text-gray-400" required />
                 {formPinError && <p className="text-xs text-red-600 font-bold mt-2 text-center">{formPinError}</p>}
               </div>
 
