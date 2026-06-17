@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'DiaM Supply Chain - ระบบจัดการคลังสินค้า',
-  description: 'แพลตฟอร์มบริหารจัดการสต็อกและคำสั่งซื้อจาก LINE Bot มั่นใจด้วยระบบ Data Integrity',
-  keywords: 'DiaM, Supply Chain, Blockchain, คลังสินค้า, ร้านอาหาร',
+  title: 'DiaM Universal Inventory - ระบบจัดการคลังสินค้าอัจฉริยะ',
+  description: 'แพลตฟอร์มบริหารจัดการสต็อกและวัสดุอุปกรณ์สำหรับทุกประเภทธุรกิจ มั่นใจด้วยระบบ Data Integrity และ Multi-Device Terminal',
+  keywords: 'DiaM, Inventory System, คลังสินค้า, จัดการสต็อก, ระบบจัดการคลังสินค้า, ก่อสร้าง, ร้านอาหาร, ค้าปลีก',
 };
 
 export default function RootLayout({
@@ -24,10 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html lang="th">
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>

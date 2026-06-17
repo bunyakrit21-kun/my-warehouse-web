@@ -17,16 +17,17 @@ export default function SignupPage() {
     const formData = new FormData(e.currentTarget);
 
     try {
-      // 🚀 ยิงข้อมูลไปหาโค้ดหลังบ้าน (Backend API) ที่คุณเขียนไว้
+      // ยิงข้อมูลไปหาโค้ดหลังบ้าน (Backend API)
       const response = await fetch("/api/signup", {
         method: "POST",
         body: formData,
       });
 
       if (response.ok) {
-        // บันทึกสถานะลงเครื่องและเด้งไปหน้าหลักคลังสินค้าตามที่หลังบ้านสั่ง
+        // บันทึกสถานะลงเครื่อง
         localStorage.setItem("diam_logged_in", "true");
-        router.push("/main");
+        // ✅ เปลี่ยนเส้นทางเพื่อให้เด้งไปที่หน้าคลังสินค้าจริงหลักการทำงานของแอปพลิเคชัน
+        router.push("/dashboard");
         router.refresh();
       } else {
         const text = await response.text();
@@ -49,14 +50,12 @@ export default function SignupPage() {
           <p className="text-sm text-gray-400">สร้างบัญชีผู้ใช้ระบบจัดการคลังสินค้า</p>
         </div>
 
-        {/* แสดงข้อความแจ้งเตือนข้อผิดพลาด */}
         {error && (
           <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
             ⚠️ {error}
           </div>
         )}
 
-        {/* ฟอร์มกรอกข้อมูล */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-xs font-mono tracking-widest text-gray-400 mb-2 uppercase">Full Name</label>
@@ -100,7 +99,6 @@ export default function SignupPage() {
           </button>
         </form>
 
-        {/* ลิงก์ย้อนกลับ */}
         <div className="mt-6 text-center text-sm text-gray-400">
           มีบัญชีอยู่แล้ว?{" "}
           <Link href="/login" className="text-white hover:underline font-medium">
