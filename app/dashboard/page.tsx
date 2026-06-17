@@ -32,7 +32,6 @@ export default function DashboardPage() {
     });
   }, []);
 
-  // ปิด dropdown เมื่อคลิกข้างนอก
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -51,10 +50,6 @@ export default function DashboardPage() {
   if (!mounted) return <div className="p-8 text-center text-gray-400">กำลังเชื่อมต่อข้อมูล...</div>;
 
   const criticalItems = products.filter(p => p.stock <= p.minStock);
-  const totalStockSum = products.reduce((a, p) => a + p.stock, 0);
-  const totalMinSum = products.reduce((a, p) => a + p.minStock, 0) || 1;
-  const inStockPercentage = Math.min(Math.round((totalStockSum / (totalStockSum + totalMinSum)) * 100), 100);
-
   const ROLE_LABEL: Record<string, string> = { owner: "เจ้าของ", admin: "แอดมิน", manager: "ผู้จัดการ", staff: "พนักงาน" };
 
   return (
@@ -62,8 +57,7 @@ export default function DashboardPage() {
 
       <header className="border-b border-gray-100 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          
-          {/* Logo + ชื่อร้าน */}
+
           <div className="flex items-center gap-2.5">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-black text-white font-black text-base">D</div>
             <div className="leading-tight">
@@ -75,7 +69,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Profile Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -95,8 +88,6 @@ export default function DashboardPage() {
 
             {dropdownOpen && (
               <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl border border-gray-200 bg-white shadow-lg z-50 overflow-hidden">
-                
-                {/* User Info */}
                 <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
                   <p className="text-xs font-bold text-gray-900">{user?.name}</p>
                   <p className="text-[11px] text-gray-400 mt-0.5">{user?.email}</p>
@@ -105,7 +96,6 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                {/* ร้านค้าที่มี */}
                 {stores.length > 0 && (
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">ร้านของฉัน</p>
@@ -127,7 +117,6 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* เมนู */}
                 <div className="p-2">
                   <Link href="/dashboard/profile" onClick={() => setDropdownOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-gray-50 transition-all w-full text-left">
@@ -204,33 +193,35 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* การ์ด 3: สถิติ */}
-          <div className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          {/* การ์ด 3: สถานะสินค้า */}
+          <Link href="/dashboard/reports" className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">ภาพรวมสต็อก</p>
-                <p className="mt-2 text-4xl font-black text-gray-900">{inStockPercentage}% <span className="text-[10px] font-bold text-purple-600 font-mono bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">Integrity</span></p>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">สถานะสินค้าในคลัง</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-4xl font-black text-gray-900">{products.length - criticalItems.length}</span>
+                  <span className="text-sm text-gray-400">/ {products.length} รายการ</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">สินค้าที่สต็อกปกติ</p>
               </div>
               <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-xl text-gray-400">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2zm9 0v-3a2 2 0 012-2h2a2 2 0 012 2v3a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
               </div>
             </div>
-            <div className="mt-6">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">สัดส่วนสต็อก</p>
-              <div className="w-full h-2.5 bg-gray-100 rounded-full flex overflow-hidden border border-gray-200/50">
-                <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${inStockPercentage}%` }} />
-                <div className="bg-red-400 h-full transition-all duration-500" style={{ width: `${100 - inStockPercentage}%` }} />
+            <div className="mt-6 space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"/>ปกติ</span>
+                <span className="text-green-600">{products.length - criticalItems.length} รายการ</span>
               </div>
-              <div className="mt-2 flex justify-between text-[10px] font-bold text-gray-400">
-                <span>คงเหลือ ({inStockPercentage}%)</span>
-                <span>ต่ำกว่าเกณฑ์ ({100 - inStockPercentage}%)</span>
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>ใกล้หมด / หมด</span>
+                <span className="text-red-500">{criticalItems.length} รายการ</span>
               </div>
             </div>
-          </div>
+          </Link>
 
         </div>
 
-        {/* notification bar */}
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3.5 flex items-center gap-3 shadow-sm">
           <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
           <p className="text-xs font-semibold text-gray-500">

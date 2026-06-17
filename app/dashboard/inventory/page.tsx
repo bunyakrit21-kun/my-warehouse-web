@@ -22,7 +22,6 @@ export default function InventoryPage() {
   const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<string>("ALL");
-  const [isDeckExpanded, setIsDeckExpanded] = useState(false);
 
   const [zonesList, setZonesList] = useState<string[]>([]);
   const [categoriesList, setCategoriesList] = useState<string[]>([]);
@@ -148,7 +147,24 @@ export default function InventoryPage() {
     }
 
     if (editingId) {
-      alert("ระบบกำลังปรับปรุงช่องทางบันทึกแก้ไขความปลอดภัยหลังบ้าน");
+      const response = await fetch(`/api/products/${editingId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(), category, zone,
+          stock: Number(stock) || 0,
+          minStock: Number(minStock) || 0,
+          unit: unit.trim(),
+          image: imageFile,
+        }),
+      });
+      if (response.ok) {
+        alert("แก้ไขสินค้าสำเร็จ");
+        setIsFormModalOpen(false);
+        fetchProductsFromDatabase();
+      } else {
+        alert("แก้ไขไม่สำเร็จ");
+      }
     } else {
       const maxIdNum = products.reduce((max, p) => {
         const currentIdNum = parseInt(p.id.replace("PROD", ""), 10);
@@ -170,7 +186,6 @@ export default function InventoryPage() {
             image: imageFile,
           }),
         });
-
         if (response.ok) {
           alert("📢 บันทึกสินค้าใหม่ลงสู่คลาวด์สำเร็จ!");
           setIsFormModalOpen(false);
@@ -195,11 +210,29 @@ export default function InventoryPage() {
     if (verifyRes.ok) {
       setIsAuthModalOpen(false);
       if (authMode === "DELETE" && selectedProduct) {
-        alert("ฟังก์ชันการลบข้อมูลคลาวด์เปิดให้ตั้งค่าในสเต็ปความปลอดภัยถัดไป");
+        try {
+          const res = await fetch(`/api/products/${selectedProduct.id}`, { method: "DELETE" });
+          if (res.ok) {
+            alert("ลบสินค้าสำเร็จ");
+            fetchProductsFromDatabase();
+          } else {
+            alert("ลบไม่สำเร็จ");
+          }
+        } catch {
+          alert("เกิดข้อผิดพลาด");
+        }
       } else if (authMode === "EDIT" && selectedProduct) {
-        setEditingId(selectedProduct.id); setName(selectedProduct.name); setCategory(selectedProduct.category);
-        setZone(selectedProduct.zone); setStock(String(selectedProduct.stock)); setMinStock(String(selectedProduct.minStock));
-        setUnit(selectedProduct.unit); setImageFile(selectedProduct.image); setFormCreatorPin(""); setFormPinError(""); setIsFormModalOpen(true);
+        setEditingId(selectedProduct.id);
+        setName(selectedProduct.name);
+        setCategory(selectedProduct.category);
+        setZone(selectedProduct.zone);
+        setStock(String(selectedProduct.stock));
+        setMinStock(String(selectedProduct.minStock));
+        setUnit(selectedProduct.unit);
+        setImageFile(selectedProduct.image);
+        setFormCreatorPin("");
+        setFormPinError("");
+        setIsFormModalOpen(true);
       }
     } else {
       setAuthError("รหัสพนักงานไม่ถูกต้อง หรือไม่มีสิทธิ์สำหรับการดำเนินการนี้");
@@ -228,52 +261,41 @@ export default function InventoryPage() {
 
       <section className="mx-auto max-w-7xl px-6 py-8">
 
-        <div className="relative mb-6">
-          <div
-            onClick={() => setIsDeckExpanded(!isDeckExpanded)}
-            className="flex flex-nowrap md:grid md:grid-cols-5 gap-2 pb-3 overflow-x-auto scrollbar-none items-center cursor-pointer select-none"
-          >
-            <button type="button" onClick={(e) => { e.stopPropagation(); setFilterMode("ALL"); }} className={`shrink-0 w-[200px] md:w-auto text-left rounded-2xl border bg-white p-4 shadow-sm flex items-center justify-between transition-all duration-300 ${filterMode === "ALL" ? "border-black ring-2 ring-black/5 scale-[1.02] z-10" : "border-gray-200 hover:border-gray-400"}`}>
-              <div className="truncate"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">รายการทั้งหมด</p><p className="mt-0.5 text-xl font-black text-gray-900">{countTotal} ชิ้น</p></div>
-            </button>
+        {/* Filter Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
+          <button type="button" onClick={() => setFilterMode("ALL")} className={`text-left rounded-2xl border bg-white p-4 shadow-sm transition-all ${filterMode === "ALL" ? "border-black ring-2 ring-black/5" : "border-gray-200 hover:border-gray-400"}`}>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">รายการทั้งหมด</p>
+            <p className="mt-0.5 text-xl font-black text-gray-900">{countTotal} ชิ้น</p>
+          </button>
 
-            {zonesList.map((zoneName) => {
-              const countZoneItems = products.filter((p) => p.zone === zoneName).length;
-              const isActive = filterMode === zoneName;
-              return (
-                <button
-                  key={zoneName}
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setFilterMode(zoneName); }}
-                  className={`shrink-0 w-[200px] md:w-auto text-left rounded-2xl border bg-white p-4 shadow-sm flex items-center justify-between transition-all duration-300 md:transform-none md:ml-0 ${isActive ? "border-black ring-2 ring-black/5 scale-[1.02] z-10" : "border-gray-200 hover:border-gray-400 opacity-90"} ${!isDeckExpanded ? "-ml-14 md:ml-0" : "ml-0"}`}
-                >
-                  <div className="truncate">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate">{zoneName}</p>
-                    <p className="mt-0.5 text-xl font-black text-gray-900">{countZoneItems} ชิ้น</p>
-                  </div>
-                </button>
-              );
-            })}
-
-            <button type="button" onClick={(e) => { e.stopPropagation(); setFilterMode("LOW_STOCK"); }} className={`shrink-0 w-[200px] md:w-auto text-left rounded-2xl border bg-white p-4 shadow-sm border-l-4 border-l-orange-500 transition-all duration-300 md:ml-0 ${filterMode === "LOW_STOCK" ? "border-black border-l-orange-500 ring-2 ring-black/5 scale-[1.02] z-10" : "border-gray-200 hover:border-gray-400"} ${!isDeckExpanded ? "-ml-14 md:ml-0" : "ml-0"}`}>
-              <div className="truncate"><p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">ใกล้หมดคลัง</p><p className="mt-0.5 text-xl font-black text-orange-600">{lowStockItems} ชิ้น</p></div>
+          {zonesList.map((zoneName) => (
+            <button key={zoneName} type="button" onClick={() => setFilterMode(zoneName)}
+              className={`text-left rounded-2xl border bg-white p-4 shadow-sm transition-all ${filterMode === zoneName ? "border-black ring-2 ring-black/5" : "border-gray-200 hover:border-gray-400"}`}>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate">{zoneName}</p>
+              <p className="mt-0.5 text-xl font-black text-gray-900">{products.filter(p => p.zone === zoneName).length} ชิ้น</p>
             </button>
+          ))}
 
-            <button type="button" onClick={(e) => { e.stopPropagation(); setFilterMode("OUT_OF_STOCK"); }} className={`shrink-0 w-[200px] md:w-auto text-left rounded-2xl border bg-white p-4 shadow-sm border-l-4 border-l-red-500 transition-all duration-300 md:ml-0 ${filterMode === "OUT_OF_STOCK" ? "border-black border-l-red-500 ring-2 ring-black/5 scale-[1.02] z-10" : "border-gray-200 hover:border-gray-400"} ${!isDeckExpanded ? "-ml-14 md:ml-0" : "ml-0"}`}>
-              <div className="truncate"><p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">หมดสต็อก</p><p className="mt-0.5 text-xl font-black text-red-600">{outOfStockItems} ชิ้น</p></div>
-            </button>
-          </div>
-          <p className="text-[10px] font-bold text-blue-600 mt-1">
-            {isDeckExpanded ? "💡 แถบจัดเก็บการ์ดกางออกแล้ว แตะเพื่อซ้อนกันเพื่อประหยัดพื้นที่" : "💡 การ์ดจัดเก็บซ้อนกันอยู่ แตะบนแถบการ์ดเพื่อคลี่เปิดดูทั้งหมด"}
-          </p>
+          <button type="button" onClick={() => setFilterMode("LOW_STOCK")}
+            className={`text-left rounded-2xl border bg-white p-4 shadow-sm border-l-4 border-l-orange-500 transition-all ${filterMode === "LOW_STOCK" ? "border-black ring-2 ring-black/5" : "border-gray-200 hover:border-gray-400"}`}>
+            <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">ใกล้หมดคลัง</p>
+            <p className="mt-0.5 text-xl font-black text-orange-600">{lowStockItems} ชิ้น</p>
+          </button>
+
+          <button type="button" onClick={() => setFilterMode("OUT_OF_STOCK")}
+            className={`text-left rounded-2xl border bg-white p-4 shadow-sm border-l-4 border-l-red-500 transition-all ${filterMode === "OUT_OF_STOCK" ? "border-black ring-2 ring-black/5" : "border-gray-200 hover:border-gray-400"}`}>
+            <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">หมดสต็อก</p>
+            <p className="mt-0.5 text-xl font-black text-red-600">{outOfStockItems} ชิ้น</p>
+          </button>
         </div>
 
+        {/* Search & Add */}
         <div className="mb-6 flex gap-3">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
-            <input type="text" placeholder="พิมพ์คำค้นหาชื่อสินค้าหรือรหัสสินค้าวัตถุดิบเพื่อตรวจสอบทันที..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-white border border-gray-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium outline-none focus:border-black focus:ring-2 focus:ring-gray-100 shadow-sm transition-all" />
+            <input type="text" placeholder="พิมพ์คำค้นหาชื่อสินค้าหรือรหัสสินค้า..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-white border border-gray-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium outline-none focus:border-black focus:ring-2 focus:ring-gray-100 shadow-sm transition-all" />
           </div>
           <button type="button" onClick={openCreateModal} className="rounded-2xl bg-black text-white px-6 font-bold text-sm hover:bg-gray-800 transition-all shadow-sm shrink-0 flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
@@ -281,6 +303,7 @@ export default function InventoryPage() {
           </button>
         </div>
 
+        {/* Table */}
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
@@ -455,7 +478,9 @@ export default function InventoryPage() {
 
               <div className="flex justify-end gap-2 pt-4 border-t border-gray-100 mt-4 shrink-0 font-sans">
                 <button type="button" onClick={() => setIsFormModalOpen(false)} className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-400 hover:text-black">ยกเลิก</button>
-                <button type="submit" className="rounded-xl bg-black text-white px-5 py-2 text-sm font-bold hover:bg-gray-800 shadow-sm">สร้างรายการ</button>
+                <button type="submit" className="rounded-xl bg-black text-white px-5 py-2 text-sm font-bold hover:bg-gray-800 shadow-sm">
+                  {editingId ? "บันทึกการแก้ไข" : "สร้างรายการ"}
+                </button>
               </div>
             </form>
           </div>

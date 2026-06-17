@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -27,11 +27,7 @@ interface Movement {
   user: string;
 }
 
-const EMPLOYEE_MASTER = {
-  "1234": "พี่สมิท (ห้องครัวหลัก)",
-  "5678": "พี่เบน (ผู้จัดการร้าน)",
-  "9999": "พนักงานคลัง พี่โบว์",
-};
+const QUICK_NOTES = ["เติมสต็อกของ", "เบิกไปใช้ครัว", "ของชำรุด"];
 
 export default function MovementPage() {
   const router = useRouter();
@@ -47,56 +43,88 @@ export default function MovementPage() {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [qty, setQty] = useState<number | "">(1);
   const [note, setNote] = useState("");
+  const [imageFile, setImageFile] = useState("");
   const [pin, setPin] = useState("");
   const [employeeName, setEmployeeName] = useState("");
+  const [verifyingPin, setVerifyingPin] = useState(false);
 
-  // ดึงข้อมูลจาก API
-  useEffect(() => {
-    setMounted(true);
-
+  const fetchData = useCallback(async () => {
     const paramProductId = searchParams.get("productId");
     const paramType = searchParams.get("type");
     if (paramType === "MOVE_IN" || paramType === "MOVE_OUT") setType(paramType);
 
-    Promise.all([fetch("/api/products"), fetch("/api/movements")])
-      .then(async ([resP, resM]) => {
-        const productsData: Product[] = await resP.json();
-        const movementsRaw = await resM.json();
+    try {
+      const [resP, resM] = await Promise.all([
+        fetch("/api/products", { cache: "no-store" }),
+        fetch("/api/movements", { cache: "no-store" }),
+      ]);
 
-        setProducts(productsData);
+      const productsData: Product[] = await resP.json();
+      const movementsRaw = await resM.json();
 
-        // แปลง format จาก DB ให้ตรงกับ interface Movement
-        const formatted: Movement[] = movementsRaw.map((m: any) => ({
-          id: `MV-${String(m.id).padStart(4, "0")}`,
-          time: new Date(m.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.",
-          type: m.type,
-          itemName: m.product_name ?? m.itemName ?? "-",
-          qty: m.qty,
-          unit: m.unit ?? "",
-          note: m.note ?? "-",
-          user: m.employee_pin ?? m.user ?? "-",
-        }));
-        setMovements(formatted);
+      setProducts(productsData);
 
-        // ถ้า URL มี productId ให้ set ให้อัตโนมัติ
-        if (paramProductId && productsData.some((p) => p.id === paramProductId)) {
-          setSelectedProductId(paramProductId);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      const formatted: Movement[] = movementsRaw.map((m: any) => ({
+        id: `MV-${String(m.id).padStart(4, "0")}`,
+        time: new Date(m.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.",
+        type: m.type,
+        itemName: m.product_name ?? m.itemName ?? "-",
+        qty: m.qty,
+        unit: m.unit ?? "",
+        note: m.note ?? "-",
+        user: m.employee_name ?? m.employee_pin ?? m.user ?? "-",
+      }));
+      setMovements(formatted);
+
+      if (paramProductId && productsData.some((p) => p.id === paramProductId)) {
+        setSelectedProductId(paramProductId);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, [searchParams]);
+
+  useEffect(() => {
+    setMounted(true);
+    fetchData();
+  }, [fetchData]);
 
   const currentProduct = products.find((p) => p.id === selectedProductId);
   const isOverStocked = type === "MOVE_OUT" && currentProduct && Number(qty) > currentProduct.stock;
 
-  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePinChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "");
     if (value.length <= 4) setPin(value);
+    setEmployeeName("");
+
     if (value.length === 4) {
-      setEmployeeName(EMPLOYEE_MASTER[value as keyof typeof EMPLOYEE_MASTER] ?? "❌ ไม่พบรหัสพนักงานนี้");
-    } else {
-      setEmployeeName("");
+      setVerifyingPin(true);
+      try {
+        const res = await fetch("/api/employees/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: value }),
+        });
+        const data = await res.json();
+        setEmployeeName(res.ok ? data.name : "❌ ไม่พบรหัสพนักงานนี้");
+      } catch {
+        setEmployeeName("❌ เกิดข้อผิดพลาด");
+      } finally {
+        setVerifyingPin(false);
+      }
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") setImageFile(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -120,13 +148,14 @@ export default function MovementPage() {
           qty: Number(qty),
           note: note.trim() || "",
           pin,
+          image: imageFile || "",
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
 
-      alert("📢 บันทึกรายการและอัปเดตยอดสต็อกในคลังสำเร็จเรียบร้อยแล้ว!");
+      alert("📢 บันทึกรายการสำเร็จ!");
       router.push("/dashboard");
     } catch (err: any) {
       alert(`❌ บันทึกไม่สำเร็จ: ${err.message}`);
@@ -170,19 +199,22 @@ export default function MovementPage() {
         <div className="grid gap-6 md:grid-cols-3">
 
           <div className={`md:col-span-2 rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 ${
-            type === "MOVE_IN" ? "border-green-400 focus-within:ring-1 focus-within:ring-green-400" : "border-red-400 focus-within:ring-1 focus-within:ring-red-400"
+            type === "MOVE_IN" ? "border-green-400" : "border-red-400"
           }`}>
             <h2 className="text-base font-bold text-gray-800 mb-5">บันทึกรายการสต็อกใหม่</h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+
               {/* Type */}
               <div>
                 <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-2">Transaction Type</label>
                 <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
-                  <button type="button" onClick={() => { setType("MOVE_IN"); setQty(1); }} className={`py-2 text-sm font-bold rounded-lg transition-all ${type === "MOVE_IN" ? "bg-green-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
+                  <button type="button" onClick={() => { setType("MOVE_IN"); setQty(1); }}
+                    className={`py-2 text-sm font-bold rounded-lg transition-all ${type === "MOVE_IN" ? "bg-green-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
                     📢 รับเข้าสินค้า (Stock In)
                   </button>
-                  <button type="button" onClick={() => { setType("MOVE_OUT"); setQty(1); }} className={`py-2 text-sm font-bold rounded-lg transition-all ${type === "MOVE_OUT" ? "bg-red-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
+                  <button type="button" onClick={() => { setType("MOVE_OUT"); setQty(1); }}
+                    className={`py-2 text-sm font-bold rounded-lg transition-all ${type === "MOVE_OUT" ? "bg-red-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
                     📤 เบิกออกสินค้า (Stock Out)
                   </button>
                 </div>
@@ -194,7 +226,7 @@ export default function MovementPage() {
                   <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">Select Product</label>
                   {currentProduct && (
                     <span className="text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
-                      สต็อกคงเหลือจริง: <span className="text-black font-black">{currentProduct.stock}</span> {currentProduct.unit}
+                      สต็อกคงเหลือ: <span className="text-black font-black">{currentProduct.stock}</span> {currentProduct.unit}
                     </span>
                   )}
                 </div>
@@ -217,7 +249,10 @@ export default function MovementPage() {
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-full sm:w-auto">
                     {[1, 2, 3, 4, 5].map((num) => (
-                      <button key={num} type="button" onClick={() => setQty(num)} className={`w-11 h-10 rounded-lg text-sm font-bold transition-all ${Number(qty) === num ? "bg-black text-white shadow-sm" : "text-gray-500 hover:text-black"}`}>{num}</button>
+                      <button key={num} type="button" onClick={() => setQty(num)}
+                        className={`w-11 h-10 rounded-lg text-sm font-bold transition-all ${Number(qty) === num ? "bg-black text-white shadow-sm" : "text-gray-500 hover:text-black"}`}>
+                        {num}
+                      </button>
                     ))}
                   </div>
                   <div className="flex flex-1 items-center gap-3">
@@ -234,15 +269,43 @@ export default function MovementPage() {
                 </div>
                 {isOverStocked && (
                   <p className="text-xs font-semibold text-red-600 mt-2">
-                    ⚠️ ขัดข้อง! ยอดเบิกเกินจำนวนสินค้าคงเหลือในสต็อกจริง (มีให้เบิกได้เพียง {currentProduct.stock} {currentProduct.unit})
+                    ⚠️ ยอดเบิกเกินสต็อกจริง (เบิกได้เพียง {currentProduct.stock} {currentProduct.unit})
                   </p>
                 )}
               </div>
 
-              {/* Note */}
+              {/* Note + Quick Notes */}
               <div>
                 <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Note (Optional)</label>
-                <textarea rows={2} placeholder="เช่น เติมสต็อกรอบเย็น, ของชำรุด, นำไปใช้ครัวหน้าร้าน" value={note} onChange={(e) => setNote(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
+                <div className="flex gap-2 mb-2">
+                  {QUICK_NOTES.map((q) => (
+                    <button key={q} type="button" onClick={() => setNote(q)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${note === q ? "bg-black text-white border-black" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+                <textarea rows={2} placeholder="หรือพิมพ์หมายเหตุเอง..." value={note} onChange={(e) => setNote(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
+              </div>
+
+              {/* Image Upload */}
+              <div>
+                <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">แนบรูปภาพ (Optional)</label>
+                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
+                  <input type="file" accept="image/*" onChange={handleImageUpload}
+                    className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
+                </div>
+                {imageFile && (
+                  <div className="mt-2 relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imageFile} alt="preview" className="w-full h-full object-cover" />
+                    <button type="button" onClick={() => setImageFile("")}
+                      className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold">
+                      ลบ
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* PIN */}
@@ -251,7 +314,8 @@ export default function MovementPage() {
                 <div className="flex items-center gap-4">
                   <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={pin} onChange={handlePinChange}
                     className="w-28 rounded-xl border border-gray-200 bg-gray-50 py-2 px-3 text-center text-lg font-black tracking-widest focus:border-black focus:bg-white outline-none transition-all" required />
-                  {employeeName && (
+                  {verifyingPin && <span className="text-xs text-gray-400">กำลังตรวจสอบ...</span>}
+                  {!verifyingPin && employeeName && (
                     <span className={`text-xs font-bold px-3 py-2 rounded-xl border ${employeeName.includes("❌") ? "bg-red-50 text-red-600 border-red-100" : "bg-green-50 text-green-700 border-green-100"}`}>
                       {employeeName}
                     </span>
@@ -261,7 +325,7 @@ export default function MovementPage() {
 
               <button
                 type="submit"
-                disabled={!selectedProductId || pin.length !== 4 || !employeeName || employeeName.includes("❌") || !!isOverStocked || submitting}
+                disabled={!selectedProductId || pin.length !== 4 || !employeeName || employeeName.includes("❌") || !!isOverStocked || submitting || verifyingPin}
                 className={`w-full rounded-xl py-3.5 text-sm font-semibold text-white transition-all disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm ${type === "MOVE_IN" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}
               >
                 {submitting ? "กำลังบันทึก..." : type === "MOVE_IN" ? "บันทึกนำสินค้าเข้าคลังวัตถุดิบ" : "บันทึกตัดยอดเบิกสินค้าออกจากคลัง"}
@@ -276,7 +340,7 @@ export default function MovementPage() {
               <ul className="space-y-3 text-xs text-gray-500 list-none leading-relaxed">
                 <li>• เลือกวัตถุดิบจากระบบเพื่อล็อกหน่วยนับโดยอัตโนมัติ</li>
                 <li>• ระบบจะป้องกันการเบิกของติดลบ (&apos;Data Integrity Guard&apos;)</li>
-                <li>• รหัสพนักงานทดสอบ: <span className="font-mono font-bold bg-gray-100 border px-1.5 py-0.5 rounded text-black">1234</span> <span className="font-mono font-bold bg-gray-100 border px-1.5 py-0.5 rounded text-black">5678</span></li>
+                <li>• กดปุ่มโน้ตลัดเพื่อเลือกหมายเหตุที่ใช้บ่อย</li>
               </ul>
             </div>
             <div className="text-[10px] font-mono text-gray-400 mt-6 border-t border-gray-100 pt-3">SECURITY STATE: PIN REQUIRED</div>
@@ -285,9 +349,7 @@ export default function MovementPage() {
 
         {/* ตารางประวัติ */}
         <div className="mt-10">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold tracking-tight">ประวัติสตรีมคลังล่าสุดวันนี้</h2>
-          </div>
+          <h2 className="text-xl font-bold tracking-tight mb-4">ประวัติสตรีมคลังล่าสุดวันนี้</h2>
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">

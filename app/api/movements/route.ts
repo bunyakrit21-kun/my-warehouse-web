@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 
-// GET — ดึงประวัติ movements
 export async function GET() {
   try {
     const movements = await sql`
@@ -13,9 +12,11 @@ export async function GET() {
         m.note,
         m.employee_pin,
         p.name AS product_name,
-        p.unit
+        p.unit,
+        u.name AS employee_name
       FROM movements m
       LEFT JOIN products p ON p.id = m.product_id
+      LEFT JOIN users u ON u.pin = m.employee_pin
       ORDER BY m.created_at DESC
       LIMIT 50
     `;
@@ -25,7 +26,6 @@ export async function GET() {
   }
 }
 
-// POST — บันทึกรายการใหม่ (โค้ดเดิม)
 export async function POST(request: Request) {
   try {
     const body = await request.json();
