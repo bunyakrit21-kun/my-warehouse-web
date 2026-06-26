@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 interface Summary {
   total_in: number;
@@ -49,7 +48,6 @@ function exportCSV(filename: string, headers: string[], rows: (string | number)[
 }
 
 export default function ReportsPage() {
-  const searchParams = useSearchParams();
   const [range, setRange] = useState<Range>("week");
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -65,11 +63,11 @@ export default function ReportsPage() {
       const user = meData?.user;
       const sid = user?.type === "staff"
         ? String(user.storeId)
-        : (searchParams.get("storeId") ?? "");
+        : new URLSearchParams(window.location.search).get("storeId") ?? "";
       setStoreId(sid);
     }
     init();
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
     if (!storeId) return;

@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 interface Product {
   id: string;
@@ -18,7 +18,6 @@ interface Product {
 
 export default function InventoryPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [storeId, setStoreId] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -79,7 +78,7 @@ export default function InventoryPage() {
       if (!user) { router.push("/login"); return; }
       const sid = user.type === "staff"
         ? String(user.storeId)
-        : (searchParams.get("storeId") ?? "");
+        : new URLSearchParams(window.location.search).get("storeId") ?? "";
       setStoreId(sid);
       await fetchProductsFromDatabase(sid);
     }
