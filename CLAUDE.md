@@ -57,12 +57,6 @@ cash_withdrawals — id, store_id, amount, reason, employee_pin, created_at
 - Error responses must use generic messages (not `error.message`) to avoid leaking internals.
 - Movement type must be validated as `MOVE_IN` or `MOVE_OUT` before inserting.
 
-### Known Gaps (not yet fixed)
-
-- `app/api/stores/route.ts` — has a local copy of `getUser()` instead of using `@/lib/auth`
-- `app/api/movements/history/route.ts` — no auth check
-- `app/api/stores/list/route.ts` — no auth check
-
 ### Environment Variables
 
 ```

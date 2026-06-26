@@ -1,18 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import jwt from "jsonwebtoken";
 import sql from "@/lib/db";
-
-async function getUser() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
-  if (!token) return null;
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET!) as any;
-  } catch {
-    return null;
-  }
-}
+import { getUser } from "@/lib/auth";
 
 // GET — ดึงร้านทั้งหมดที่ user นี้เป็นเจ้าของหรือเป็นสมาชิก
 export async function GET() {
