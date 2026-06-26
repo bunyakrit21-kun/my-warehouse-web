@@ -1,157 +1,97 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-interface Product {
-  id: string;
-  name: string;
-  stock: number;
-  minStock: number;
-  unit: string;
-}
+const BACKGROUND_IMAGES = [
+  "https://images.unsplash.com/photo-1586528116311-ad8ed7c1590f?q=80&w=2070&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1553413077-190dd305871c?q=80&w=2070&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=2070&auto=format&fit=crop"
+];
 
-export default function DashboardPage() {
+export default function LandingPage() {
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
-    setMounted(true);
-    fetch("/api/products")
-      .then(r => r.ok ? r.json() : [])
-      .then(setProducts)
-      .catch(console.error);
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % BACKGROUND_IMAGES.length);
+    }, 5000); 
+    return () => clearInterval(interval);
   }, []);
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+  const handleStartClick = () => {
+    // 1. ตรวจสอบสถานะการเข้าสู่ระบบ
+    // ปรับเปลี่ยนตามระบบ Auth ของคุณ (ถ้าใช้ Iron Session หรือ NextAuth จะเช็คจาก Cookie)
+    const isAuthenticated = localStorage.getItem("diam_logged_in") === "true";
+
+    if (isAuthenticated) {
+      router.push("/dashboard");
+    } else {
+      // 2. ถ้ายังไม่ล็อกอิน ให้ไปหน้า Login ทันที
+      router.push("/login");
+    }
   };
 
-  if (!mounted) return <div className="p-8 text-center text-sm font-sans text-gray-400">กำลังประมวลผลแผงควบคุมระบบ...</div>;
-
-  const criticalItems = products.filter((p) => p.stock <= p.minStock);
-  const totalStockSum = products.reduce((acc, p) => acc + p.stock, 0);
-  const totalMinSum = products.reduce((acc, p) => acc + p.minStock, 0) || 1;
-  const inStockPercentage = Math.min(Math.round((totalStockSum / (totalStockSum + totalMinSum)) * 100), 100);
-  const outStockPercentage = 100 - inStockPercentage;
-
   return (
-    <main className="min-h-screen bg-gray-50 text-black font-sans antialiased pb-12">
+    <main className="relative w-full h-screen overflow-hidden bg-black text-white selection:bg-white selection:text-black font-sans">
+      
+      <style>{`
+        @keyframes slowPan { 0% { transform: scale(1.0); } 100% { transform: scale(1.05); } }
+        .animate-slow-pan { animation: slowPan 10s ease-in-out infinite alternate; }
+      `}</style>
 
-      <header className="border-b border-gray-100 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-2.5">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-black text-white font-black text-base shadow-sm">D</div>
-            <div className="leading-tight">
-              <span className="font-bold text-gray-900">DiaM</span>
-              <span className="text-gray-300 mx-2">|</span>
-              <span className="text-xs text-gray-400 font-medium">Dashboard</span>
-            </div>
-          </div>
-          <button onClick={handleLogout} className="text-xs font-bold text-gray-400 hover:text-black flex items-center gap-1 transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+      {BACKGROUND_IMAGES.map((imgUrl, index) => (
+        <div 
+          key={imgUrl}
+          className={`absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ${
+            index === currentImageIndex ? "opacity-40 animate-slow-pan" : "opacity-0"
+          }`}
+          style={{ backgroundImage: `url('${imgUrl}')` }}
+        />
+      ))}
+
+      <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-8 md:px-12">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-white text-black shadow-lg">
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
             </svg>
-            ออกจากระบบ
-          </button>
+          </div>
+          <span className="text-xl font-black tracking-widest uppercase">DiaM</span>
+        </div>
+
+        <div className="flex items-center gap-6">
+          <Link href="/login" className="text-sm font-medium text-gray-300 hover:text-white transition">เข้าสู่ระบบ</Link>
+          <Link href="/signup" className="rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-5 py-2.5 text-sm font-semibold hover:bg-white hover:text-black transition-all"> 
+            สมัครใช้งาน
+          </Link>
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="grid gap-5 md:grid-cols-3 mb-6">
-
-          {/* การ์ด 1: สินค้าทั้งหมด */}
-          <Link href="/dashboard/inventory" className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">สินค้าทั้งหมดในสต็อก</p>
-                <p className="mt-2 text-4xl font-black text-gray-900 tracking-tight">{products.length} <span className="text-xs font-normal text-gray-400">รายการ</span></p>
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
-                {criticalItems.length > 0 && (
-                  <span className="inline-flex rounded-full bg-red-50 border border-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
-                    วิกฤต {criticalItems.length} รายการ
-                  </span>
-                )}
-                <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-xl text-gray-400 mt-2">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                </div>
-              </div>
-            </div>
-            <div className="mt-5 pt-4 border-t border-gray-100">
-              <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-2">แจ้งเตือนสินค้าหมด / ใกล้หมดคลัง</p>
-              {criticalItems.length === 0 ? (
-                <p className="text-xs text-gray-400 font-medium">ปริมาณวัตถุดิบทุกรายการอยู่ในเกณฑ์ปกติ</p>
-              ) : (
-                <ul className="space-y-1.5 text-xs font-semibold text-gray-700">
-                  {criticalItems.slice(0, 3).map((item) => (
-                    <li key={item.id} className="flex justify-between items-center bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-100">
-                      <span className="truncate max-w-[160px]">{item.name}</span>
-                      <span className={`font-black ${item.stock === 0 ? "text-red-600" : "text-orange-500"}`}>{item.stock} {item.unit}</span>
-                    </li>
-                  ))}
-                  {criticalItems.length > 3 && (
-                    <li className="text-[10px] text-gray-400 text-right font-medium">+ มีอีก {criticalItems.length - 3} รายการที่ต้องเฝ้าระวัง</li>
-                  )}
-                </ul>
-              )}
-            </div>
-          </Link>
-
-          {/* การ์ด 2: รายการเคลื่อนไหว */}
-          <Link href="/dashboard/movement" className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">รายการนำเข้าและเบิกออกวันนี้</p>
-            <div className="mt-4 flex items-baseline gap-4">
-              <span className="text-3xl font-black text-green-600 tracking-tight">Stock In <span className="text-xs font-bold text-gray-400 block uppercase mt-0.5">เข้าคลัง</span></span>
-            </div>
-            <div className="mt-7 pt-4 border-t border-gray-100">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                กดเพื่อบันทึกรายการรับ/เบิกสินค้า
-              </p>
-            </div>
-          </Link>
-
-          {/* การ์ด 3: สถานะสินค้า */}
-          <Link href="/dashboard/reports" className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">สถานะสินค้าในคลัง</p>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-4xl font-black text-gray-900">{products.length - criticalItems.length}</span>
-                  <span className="text-sm text-gray-400">/ {products.length} รายการ</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">สินค้าที่สต็อกปกติ</p>
-              </div>
-              <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-xl text-gray-400">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2zm9 0v-3a2 2 0 012-2h2a2 2 0 012 2v3a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-              </div>
-            </div>
-            <div className="mt-6 space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"/>ปกติ</span>
-                <span className="text-green-600">{products.length - criticalItems.length} รายการ</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>ใกล้หมด / หมด</span>
-                <span className="text-red-500">{criticalItems.length} รายการ</span>
-              </div>
-            </div>
-          </Link>
-
+      <div className="relative z-10 flex flex-col items-center justify-center w-full h-full px-6 text-center">
+        <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 rounded-full border border-white/10 bg-white/5 backdrop-blur-md text-[10px] font-bold tracking-[0.2em] uppercase text-gray-300">
+          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+          Cloud Native Inventory
         </div>
 
-        {/* notification bar */}
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3.5 flex items-center gap-3 shadow-sm">
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
-          <p className="text-xs font-semibold text-gray-500 leading-none">
-            ระบบความปลอดภัยเปิดสแตนด์บาย: ข้อมูลประวัติการเบิกจ่ายและรายการแจ้งเตือนคลังสินค้าวิกฤตจะได้รับการอัปเดตแบบเรียลไทม์โดยอัตโนมัติ
-          </p>
-        </div>
-      </section>
+        <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-6 text-white drop-shadow-2xl">
+          Inventory <br/>Control.
+        </h1>
+        
+        <p className="max-w-xl text-lg font-light text-gray-300 mb-10 leading-relaxed">
+          บริหารจัดการสต็อกวัตถุดิบและรายการเคลื่อนไหวคลังแบบเรียลไทม์ เชื่อมต่อด้วยฐานข้อมูล Cloud มาตรฐานระดับสากล
+        </p>
+
+        <button 
+          onClick={handleStartClick}
+          className="group flex items-center gap-3 rounded-full bg-white px-10 py-4 text-sm font-bold text-black transition-transform hover:scale-105 active:scale-95"
+        >
+          เริ่มต้นเข้าใช้งานระบบ
+          <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+        </button>
+      </div>
     </main>
   );
 }
