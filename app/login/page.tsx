@@ -48,7 +48,13 @@ export default function LoginPage() {
     <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
 
-        <div className="flex justify-end mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <Link href="/" className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-black transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path d="M15 19l-7-7 7-7" />
+            </svg>
+            {t("backToHome")}
+          </Link>
           <LangSwitcher />
         </div>
 
