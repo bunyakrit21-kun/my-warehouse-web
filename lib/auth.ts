@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import sql from "@/lib/db";
 
 export async function getUser() {
   const cookieStore = await cookies();
@@ -10,4 +11,22 @@ export async function getUser() {
   } catch {
     return null;
   }
+}
+
+export async function resolveStoreId(
+  user: { id?: number; type?: string; storeId?: number },
+  requestedStoreId?: string | null
+): Promise<string | null> {
+  if (user.type === "staff") return user.storeId ? String(user.storeId) : null;
+  if (!requestedStoreId) return null;
+  const userId = user.id ?? 0;
+  const rows = await sql`
+    SELECT id FROM stores
+    WHERE id = ${requestedStoreId}
+    AND (
+      owner_id = ${userId}
+      OR id IN (SELECT store_id FROM store_members WHERE user_id = ${userId})
+    )
+  `;
+  return rows.length > 0 ? requestedStoreId : null;
 }

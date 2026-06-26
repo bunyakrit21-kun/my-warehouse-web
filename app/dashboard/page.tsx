@@ -18,18 +18,25 @@ export default function DashboardPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const fetchProductsForStore = async (sid: number) => {
+    const data = await fetch(`/api/products?storeId=${sid}`).then(r => r.ok ? r.json() : []);
+    setProducts(data);
+  };
+
   useEffect(() => {
     setMounted(true);
-    Promise.all([
-      fetch("/api/auth/me").then(r => r.ok ? r.json() : null),
-      fetch("/api/products").then(r => r.ok ? r.json() : []),
-      fetch("/api/stores").then(r => r.ok ? r.json() : []),
-    ]).then(([meData, productsData, storesData]) => {
+    async function init() {
+      const [meData, storesData] = await Promise.all([
+        fetch("/api/auth/me").then(r => r.ok ? r.json() : null),
+        fetch("/api/stores").then(r => r.ok ? r.json() : []),
+      ]);
       if (meData?.user) setUser(meData.user);
-      setProducts(productsData);
       setStores(storesData);
-      if (storesData.length > 0) setCurrentStore(storesData[0]);
-    });
+      const first: Store | null = storesData[0] ?? null;
+      setCurrentStore(first);
+      if (first) await fetchProductsForStore(first.id);
+    }
+    init();
   }, []);
 
   // ปิด dropdown เมื่อคลิกข้างนอก
@@ -112,7 +119,7 @@ export default function DashboardPage() {
                     {stores.map(store => (
                       <button
                         key={store.id}
-                        onClick={() => { setCurrentStore(store); setDropdownOpen(false); }}
+                        onClick={() => { setCurrentStore(store); setDropdownOpen(false); fetchProductsForStore(store.id); }}
                         className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-xl mb-1 transition-all ${currentStore?.id === store.id ? "bg-black text-white" : "hover:bg-gray-50"}`}
                       >
                         <div>
@@ -161,7 +168,7 @@ export default function DashboardPage() {
         <div className="grid gap-5 md:grid-cols-3 mb-6">
 
           {/* การ์ด 1: สินค้าทั้งหมด */}
-          <Link href="/dashboard/inventory" className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
+          <Link href={`/dashboard/inventory${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">สินค้าทั้งหมดในสต็อก</p>
@@ -194,7 +201,7 @@ export default function DashboardPage() {
           </Link>
 
           {/* การ์ด 2: รายการเคลื่อนไหว */}
-          <Link href="/dashboard/movement" className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
+          <Link href={`/dashboard/movement${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">รับเข้า / เบิกออกสินค้า</p>
             <div className="mt-4 flex items-baseline gap-4">
               <span className="text-3xl font-black text-green-600">Stock In <span className="text-xs font-bold text-gray-400 block uppercase mt-0.5">เข้าคลัง</span></span>
@@ -204,7 +211,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 {/* การ์ด 3: สถานะสินค้า */}
-          <Link href="/dashboard/reports" className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
+          <Link href={`/dashboard/reports${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">สถานะสินค้าในคลัง</p>

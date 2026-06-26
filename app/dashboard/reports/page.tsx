@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 interface Summary {
   total_in: number;
@@ -48,6 +49,7 @@ function exportCSV(filename: string, headers: string[], rows: (string | number)[
 }
 
 export default function ReportsPage() {
+  const searchParams = useSearchParams();
   const [range, setRange] = useState<Range>("week");
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -55,19 +57,33 @@ export default function ReportsPage() {
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [dailyTrend, setDailyTrend] = useState<DailyTrend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [storeId, setStoreId] = useState("");
 
   useEffect(() => {
+    async function init() {
+      const meData = await fetch("/api/auth/me").then(r => r.ok ? r.json() : null);
+      const user = meData?.user;
+      const sid = user?.type === "staff"
+        ? String(user.storeId)
+        : (searchParams.get("storeId") ?? "");
+      setStoreId(sid);
+    }
+    init();
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!storeId) return;
     setLoading(true);
-    fetch(`/api/reports?range=${range}`)
+    fetch(`/api/reports?range=${range}&storeId=${storeId}`)
       .then(r => r.json())
       .then(data => {
         setSummary(data.summary);
         setCashSummary(data.cashSummary);
-        setTopProducts(data.topProducts);
-        setDailyTrend(data.dailyTrend);
+        setTopProducts(data.topProducts ?? []);
+        setDailyTrend(data.dailyTrend ?? []);
       })
       .finally(() => setLoading(false));
-  }, [range]);
+  }, [range, storeId]);
 
   const maxTopMovement = Math.max(...topProducts.map(p => Number(p.total_movements)), 1);
   const maxDailyVolume = Math.max(...dailyTrend.flatMap(d => [Number(d.volume_in), Number(d.volume_out)]), 1);

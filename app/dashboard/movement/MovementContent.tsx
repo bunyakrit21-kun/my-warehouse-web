@@ -87,25 +87,36 @@ export default function MovementPage() {
   const [verifyingPin, setVerifyingPin] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
   const [cashImageFile, setCashImageFile] = useState("");
+  const [storeId, setStoreId] = useState("");
 
   const fetchData = useCallback(async () => {
     const paramProductId = searchParams.get("productId");
     const paramType = searchParams.get("type");
+    const paramStoreId = searchParams.get("storeId");
     if (paramType === "MOVE_IN" || paramType === "MOVE_OUT") setType(paramType);
 
     try {
-      const [resP, resM, resC, resMe] = await Promise.all([
-        fetch("/api/products", { cache: "no-store" }),
-        fetch("/api/movements", { cache: "no-store" }),
-        fetch("/api/cash-withdrawals", { cache: "no-store" }),
-        fetch("/api/auth/me", { cache: "no-store" }),
+      const meRes = await fetch("/api/auth/me", { cache: "no-store" });
+      const meData = await meRes.json();
+      const user = meData?.user;
+      if (!user) { router.push("/login"); return; }
+
+      const isUserStaff = user.type === "staff";
+      const resolvedStoreId = isUserStaff ? String(user.storeId) : (paramStoreId ?? "");
+      setIsStaff(isUserStaff);
+      setStoreId(resolvedStoreId);
+
+      if (!resolvedStoreId) { setLoading(false); return; }
+
+      const [resP, resM, resC] = await Promise.all([
+        fetch(`/api/products?storeId=${resolvedStoreId}`, { cache: "no-store" }),
+        fetch(`/api/movements?storeId=${resolvedStoreId}`, { cache: "no-store" }),
+        fetch(`/api/cash-withdrawals?storeId=${resolvedStoreId}`, { cache: "no-store" }),
       ]);
 
       const productsData: Product[] = await resP.json();
       const movementsRaw = await resM.json();
       const cashRaw = await resC.json();
-      const meData = await resMe.json();
-      if (meData?.user?.type === "staff") setIsStaff(true);
 
       setProducts(productsData);
 
@@ -214,7 +225,7 @@ export default function MovementPage() {
             amount: Number(cashAmount),
             reason: cashReason.trim(),
             pin,
-            image: cashImageFile || "",
+            storeId,
           }),
         });
         const data = await res.json();
@@ -246,7 +257,7 @@ export default function MovementPage() {
           qty: Number(qty),
           note: note.trim() || "",
           pin,
-          image: imageFile || "",
+          storeId,
         }),
       });
 

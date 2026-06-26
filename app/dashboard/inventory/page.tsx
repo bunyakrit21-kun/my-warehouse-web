@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface Product {
   id: string;
@@ -18,7 +18,9 @@ interface Product {
 
 export default function InventoryPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
+  const [storeId, setStoreId] = useState("");
   const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<string>("ALL");
@@ -52,9 +54,10 @@ export default function InventoryPage() {
   const [formPinError, setFormPinError] = useState("");
   const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
 
-  const fetchProductsFromDatabase = async () => {
+  const fetchProductsFromDatabase = async (sid: string) => {
+    if (!sid) return;
     try {
-      const res = await fetch("/api/products");
+      const res = await fetch(`/api/products?storeId=${sid}`);
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
@@ -70,7 +73,17 @@ export default function InventoryPage() {
 
   useEffect(() => {
     setMounted(true);
-    fetchProductsFromDatabase();
+    async function init() {
+      const meData = await fetch("/api/auth/me").then(r => r.ok ? r.json() : null);
+      const user = meData?.user;
+      if (!user) { router.push("/login"); return; }
+      const sid = user.type === "staff"
+        ? String(user.storeId)
+        : (searchParams.get("storeId") ?? "");
+      setStoreId(sid);
+      await fetchProductsFromDatabase(sid);
+    }
+    init();
   }, []);
 
   if (!mounted) return <div className="p-8 text-center text-sm font-sans text-gray-400">กำลังเชื่อมต่อฐานข้อมูลเซิร์ฟเวอร์...</div>;
@@ -161,7 +174,7 @@ export default function InventoryPage() {
       if (response.ok) {
         alert("แก้ไขสินค้าสำเร็จ");
         setIsFormModalOpen(false);
-        fetchProductsFromDatabase();
+        fetchProductsFromDatabase(storeId);
       } else {
         alert("แก้ไขไม่สำเร็จ");
       }
@@ -184,12 +197,13 @@ export default function InventoryPage() {
             minStock: Number(minStock) || 0,
             unit: unit.trim(),
             image: imageFile,
+            storeId,
           }),
         });
         if (response.ok) {
           alert("📢 บันทึกสินค้าใหม่ลงสู่คลาวด์สำเร็จ!");
           setIsFormModalOpen(false);
-          fetchProductsFromDatabase();
+          fetchProductsFromDatabase(storeId);
         } else {
           alert("เกิดข้อผิดพลาดจากฝั่งเซิร์ฟเวอร์ ไม่สามารถบันทึกได้");
         }
@@ -214,7 +228,7 @@ export default function InventoryPage() {
           const res = await fetch(`/api/products/${selectedProduct.id}`, { method: "DELETE" });
           if (res.ok) {
             alert("ลบสินค้าสำเร็จ");
-            fetchProductsFromDatabase();
+            fetchProductsFromDatabase(storeId);
           } else {
             alert("ลบไม่สำเร็จ");
           }
@@ -340,7 +354,7 @@ export default function InventoryPage() {
                               <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
                             </button>
                           ) : (
-                            <button type="button" onClick={() => router.push(`/dashboard/movement?productId=${p.id}&type=MOVE_IN`)} className={`group relative flex flex-col items-center justify-center h-12 w-12 rounded-xl border bg-gray-50 text-gray-400 text-center font-bold transition-all hover:scale-105 hover:bg-gray-100 hover:text-black ${ringColor}`}>
+                            <button type="button" onClick={() => router.push(`/dashboard/movement?productId=${p.id}&type=MOVE_IN&storeId=${storeId}`)} className={`group relative flex flex-col items-center justify-center h-12 w-12 rounded-xl border bg-gray-50 text-gray-400 text-center font-bold transition-all hover:scale-105 hover:bg-gray-100 hover:text-black ${ringColor}`}>
                               <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                               <span className="text-[10px] text-gray-700 group-hover:text-black font-black">{p.stock}</span>
                             </button>
@@ -357,9 +371,9 @@ export default function InventoryPage() {
                         </td>
                         <td className="whitespace-nowrap px-5 py-4 text-center">
                           <div className="flex items-center justify-center gap-2">
-                            <button type="button" onClick={() => router.push(`/dashboard/movement?productId=${p.id}&type=MOVE_OUT`)} disabled={Number(p.stock) <= 0} className="w-7 h-7 rounded-lg border border-gray-200 bg-white flex items-center justify-center font-bold text-gray-500 hover:border-black hover:text-black disabled:opacity-30 disabled:cursor-not-allowed transition shadow-sm">-</button>
+                            <button type="button" onClick={() => router.push(`/dashboard/movement?productId=${p.id}&type=MOVE_OUT&storeId=${storeId}`)} disabled={Number(p.stock) <= 0} className="w-7 h-7 rounded-lg border border-gray-200 bg-white flex items-center justify-center font-bold text-gray-500 hover:border-black hover:text-black disabled:opacity-30 disabled:cursor-not-allowed transition shadow-sm">-</button>
                             <div className="text-sm font-black text-gray-900 min-w-[50px]">{p.stock} <span className="text-xs font-medium text-gray-400 block font-normal">{p.unit}</span></div>
-                            <button type="button" onClick={() => router.push(`/dashboard/movement?productId=${p.id}&type=MOVE_IN`)} className="w-7 h-7 rounded-lg border border-gray-200 bg-white flex items-center justify-center font-bold text-gray-500 hover:border-black hover:text-black transition shadow-sm">+</button>
+                            <button type="button" onClick={() => router.push(`/dashboard/movement?productId=${p.id}&type=MOVE_IN&storeId=${storeId}`)} className="w-7 h-7 rounded-lg border border-gray-200 bg-white flex items-center justify-center font-bold text-gray-500 hover:border-black hover:text-black transition shadow-sm">+</button>
                           </div>
                         </td>
                         <td className="whitespace-nowrap px-5 py-4 text-right">

@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
-import { getUser } from "@/lib/auth";
+import { getUser, resolveStoreId } from "@/lib/auth";
 
 const VALID_TYPES = ["MOVE_IN", "MOVE_OUT"] as const;
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const storeId = await resolveStoreId(user, searchParams.get("storeId"));
+  if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
   try {
     const movements = await sql`
@@ -23,6 +27,7 @@ export async function GET() {
       FROM movements m
       LEFT JOIN products p ON p.id = m.product_id
       LEFT JOIN users u ON u.pin = m.employee_pin
+      WHERE m.store_id = ${storeId}
       ORDER BY m.created_at DESC
       LIMIT 50
     `;
@@ -38,7 +43,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { productId, type, qty, note, pin } = body;
+    const { productId, type, qty, note, pin, storeId: bodyStoreId } = body;
 
     if (!productId || !qty || qty <= 0) {
       return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
@@ -48,9 +53,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "ประเภทการเคลื่อนย้ายไม่ถูกต้อง" }, { status: 400 });
     }
 
+    const storeId = await resolveStoreId(user, bodyStoreId);
+    if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
+
     const result = await sql.begin(async (sql) => {
       const products = await sql`
-        SELECT stock FROM products WHERE id = ${productId} FOR UPDATE
+        SELECT stock FROM products
+        WHERE id = ${productId} AND store_id = ${storeId}
+        FOR UPDATE
       `;
 
       if (products.length === 0) throw new Error("ไม่พบสินค้า");
@@ -62,13 +72,14 @@ export async function POST(request: Request) {
       }
 
       await sql`
-        INSERT INTO movements (product_id, employee_pin, type, qty, note)
-        VALUES (${productId}, ${pin}, ${type}, ${qty}, ${note || ""})
+        INSERT INTO movements (product_id, employee_pin, type, qty, note, store_id)
+        VALUES (${productId}, ${pin}, ${type}, ${qty}, ${note || ""}, ${storeId})
       `;
 
       const change = type === "MOVE_IN" ? qty : -qty;
       await sql`
-        UPDATE products SET stock = stock + ${change} WHERE id = ${productId}
+        UPDATE products SET stock = stock + ${change}
+        WHERE id = ${productId} AND store_id = ${storeId}
       `;
 
       return { success: true };
