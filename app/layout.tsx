@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Sarabun } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans_TC, Sarabun } from "next/font/google";
+import { LangProvider } from "@/lib/i18n";
 import "./globals.css";
 
 const sarabun = Sarabun({
   subsets: ["thai", "latin"],
   weight: ["400", "600", "700", "800"],
   variable: "--font-sarabun",
+  display: "swap",
+});
+
+const notoSansTC = Noto_Sans_TC({
+  subsets: ["latin"],
+  weight: ["400", "600", "700", "900"],
+  variable: "--font-noto-tc",
   display: "swap",
 });
 
@@ -34,8 +42,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th">
-      <body className={`${sarabun.variable} ${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
-        {children}
+      <body className={`${sarabun.variable} ${geistSans.variable} ${geistMono.variable} ${notoSansTC.variable} font-sans antialiased`}>
+        <LangProvider>{children}</LangProvider>
       </body>
     </html>
   );

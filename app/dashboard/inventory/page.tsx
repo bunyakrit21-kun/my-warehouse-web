@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useT, LangSwitcher } from "@/lib/i18n";
 
 interface Product {
   id: string;
@@ -18,6 +19,7 @@ interface Product {
 
 export default function InventoryPage() {
   const router = useRouter();
+  const { t } = useT();
   const [products, setProducts] = useState<Product[]>([]);
   const [storeId, setStoreId] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -268,7 +270,10 @@ export default function InventoryPage() {
               <p className="text-xs text-gray-400 font-medium">ระบบคลังสินค้าฐานข้อมูลกลาง (Cloud Connected)</p>
             </div>
           </div>
-          <button onClick={() => { window.location.href = "/dashboard"; }} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold hover:border-black transition-all">กลับหน้าเริ่มต้น</button>
+          <div className="flex items-center gap-3">
+            <LangSwitcher />
+            <button onClick={() => { window.location.href = "/dashboard"; }} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold hover:border-black transition-all">{t("backToHome")}</button>
+          </div>
         </div>
       </header>
 
@@ -277,8 +282,8 @@ export default function InventoryPage() {
         {/* Filter Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
           <button type="button" onClick={() => setFilterMode("ALL")} className={`text-left rounded-2xl border bg-white p-4 shadow-sm transition-all ${filterMode === "ALL" ? "border-black ring-2 ring-black/5" : "border-gray-200 hover:border-gray-400"}`}>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">รายการทั้งหมด</p>
-            <p className="mt-0.5 text-xl font-black text-gray-900">{countTotal} ชิ้น</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{t("allItems")}</p>
+            <p className="mt-0.5 text-xl font-black text-gray-900">{countTotal}</p>
           </button>
 
           {zonesList.map((zoneName) => (
@@ -291,14 +296,14 @@ export default function InventoryPage() {
 
           <button type="button" onClick={() => setFilterMode("LOW_STOCK")}
             className={`text-left rounded-2xl border bg-white p-4 shadow-sm border-l-4 border-l-orange-500 transition-all ${filterMode === "LOW_STOCK" ? "border-black ring-2 ring-black/5" : "border-gray-200 hover:border-gray-400"}`}>
-            <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">ใกล้หมดคลัง</p>
-            <p className="mt-0.5 text-xl font-black text-orange-600">{lowStockItems} ชิ้น</p>
+            <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">{t("lowStock")}</p>
+            <p className="mt-0.5 text-xl font-black text-orange-600">{lowStockItems}</p>
           </button>
 
           <button type="button" onClick={() => setFilterMode("OUT_OF_STOCK")}
             className={`text-left rounded-2xl border bg-white p-4 shadow-sm border-l-4 border-l-red-500 transition-all ${filterMode === "OUT_OF_STOCK" ? "border-black ring-2 ring-black/5" : "border-gray-200 hover:border-gray-400"}`}>
-            <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">หมดสต็อก</p>
-            <p className="mt-0.5 text-xl font-black text-red-600">{outOfStockItems} ชิ้น</p>
+            <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">{t("outOfStock")}</p>
+            <p className="mt-0.5 text-xl font-black text-red-600">{outOfStockItems}</p>
           </button>
         </div>
 
@@ -312,7 +317,7 @@ export default function InventoryPage() {
           </div>
           <button type="button" onClick={openCreateModal} className="rounded-2xl bg-black text-white px-6 font-bold text-sm hover:bg-gray-800 transition-all shadow-sm shrink-0 flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-            เพิ่มสินค้าใหม่
+            {t("addProduct")}
           </button>
         </div>
 
@@ -322,16 +327,16 @@ export default function InventoryPage() {
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/70 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  <th className="px-5 py-4 w-24 text-center">ภาพสินค้า</th>
-                  <th className="px-5 py-4">รหัส / ชื่อรายละเอียดวัตถุดิบ</th>
-                  <th className="px-5 py-4">กลุ่มหมวดหมู่ & พื้นที่จัดเก็บ</th>
-                  <th className="px-5 py-4 text-center w-48">ปริมาณคลังสินค้าคงเหลือ</th>
-                  <th className="px-5 py-4 text-right w-44">การดำเนินการควบคุม</th>
+                  <th className="px-5 py-4 w-24 text-center">{t("colImage")}</th>
+                  <th className="px-5 py-4">{t("colIdName")}</th>
+                  <th className="px-5 py-4">{t("colCatZone")}</th>
+                  <th className="px-5 py-4 text-center w-48">{t("colStockQty")}</th>
+                  <th className="px-5 py-4 text-right w-44">{t("colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
                 {filteredProducts.length === 0 ? (
-                  <tr><td colSpan={5} className="py-12 text-center text-sm text-gray-400 font-medium">คลังสินค้าว่างเปล่า กรุณากดปุ่มเพิ่มสินค้าใหม่ด้านบน</td></tr>
+                  <tr><td colSpan={5} className="py-12 text-center text-sm text-gray-400 font-medium">{t("emptyInventory")}</td></tr>
                 ) : (
                   filteredProducts.map((p: Product) => {
                     let ringColor = "border-gray-200";
@@ -397,7 +402,7 @@ export default function InventoryPage() {
           <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col font-sans">
             <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between bg-gray-50/80 shrink-0">
               <h2 className="text-sm font-bold text-gray-800 tracking-tight">
-                {editingId ? "แก้ไขข้อมูลสินค้าในคลัง" : "เพิ่มสินค้าใหม่เข้าฐานข้อมูล"}
+                {editingId ? t("editProductTitle") : t("addProductTitle")}
               </h2>
               <button type="button" onClick={() => setIsFormModalOpen(false)} className="text-gray-400 hover:text-black">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
@@ -406,15 +411,15 @@ export default function InventoryPage() {
 
             <form onSubmit={handleSaveProduct} className="p-6 space-y-4 overflow-y-auto flex-1 text-sm">
               <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">ชื่อวัตถุดิบ / สินค้า</label>
-                <input type="text" placeholder="ระบุชื่อเรียกวัตถุดิบคลังสินค้า" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" required />
+                <label className="text-xs font-bold text-gray-500 block mb-1">{t("productNameLabel")}</label>
+                <input type="text" placeholder={t("productNamePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" required />
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-bold text-gray-500">พื้นที่จัดเก็บ (Zone Area)</label>
+                  <label className="text-xs font-bold text-gray-500">{t("zoneLabel")}</label>
                   <button type="button" onClick={() => setShowAddZoneInput(!showAddZoneInput)} className="text-xs font-semibold text-blue-600 hover:text-blue-800">
-                    {showAddZoneInput ? "ยกเลิก" : "+ เพิ่มโซนใหม่"}
+                    {showAddZoneInput ? t("cancel") : t("addNewZone")}
                   </button>
                 </div>
                 {showAddZoneInput && (
@@ -434,9 +439,9 @@ export default function InventoryPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-bold text-gray-500">หมวดหมู่สินค้า (Category)</label>
+                  <label className="text-xs font-bold text-gray-500">{t("categoryLabel")}</label>
                   <button type="button" onClick={() => setShowAddCatInput(!showAddCatInput)} className="text-xs font-semibold text-blue-600 hover:text-blue-800">
-                    {showAddCatInput ? "ยกเลิก" : "+ เพิ่มหมวดหมู่ใหม่"}
+                    {showAddCatInput ? t("cancel") : t("addNewCat")}
                   </button>
                 </div>
                 {showAddCatInput && (
@@ -456,22 +461,22 @@ export default function InventoryPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-gray-500 block mb-1">ยอดคงคลังเริ่มต้น</label>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">{t("initialStock")}</label>
                   <input type="number" min="0" placeholder="0" value={stock} onChange={(e) => setStock(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm text-center outline-none focus:border-black focus:bg-white transition-all font-sans" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-500 block mb-1">หน่วยนับ</label>
-                  <input type="text" placeholder="เช่น ขวด, แพ็ค" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm text-center outline-none focus:border-black focus:bg-white transition-all font-sans" required />
+                  <label className="text-xs font-bold text-gray-500 block mb-1">{t("unitLabel")}</label>
+                  <input type="text" placeholder={t("unitPlaceholder")} value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm text-center outline-none focus:border-black focus:bg-white transition-all font-sans" required />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">เกณฑ์แจ้งเตือนสต็อกขั้นต่ำ</label>
+                <label className="text-xs font-bold text-gray-500 block mb-1">{t("minStockLabel")}</label>
                 <input type="number" min="0" placeholder="เกณฑ์แจ้งเตือนสต็อกขั้นต่ำเมื่อของขาด" value={minStock} onChange={(e) => setMinStock(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1.5">ภาพสินค้าวัตถุดิบ (อัปโหลดไฟล์)</label>
+                <label className="text-xs font-bold text-gray-500 block mb-1.5">{t("photoLabel")}</label>
                 <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer font-sans" />
                 </div>
@@ -484,15 +489,15 @@ export default function InventoryPage() {
               </div>
 
               <div className="pt-4 border-t border-dashed border-gray-200 bg-red-50/30 p-4 rounded-2xl border border-red-100">
-                <label className="text-xs font-bold text-red-600 block mb-1.5">รหัสยืนยันตัวตนพนักงาน (PIN 4 หลัก) *</label>
-                <input type="password" maxLength={4} inputMode="numeric" placeholder="กรอกรหัสพนักงานเพื่อบันทึกรายการ" value={formCreatorPin} onChange={(e) => { setFormCreatorPin(e.target.value.replace(/\D/g, "")); setFormPinError(""); }} className="w-full rounded-xl border border-red-200 bg-white py-2.5 px-4 text-center font-sans font-bold tracking-widest text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:tracking-normal placeholder:font-normal placeholder:text-gray-400" required />
+                <label className="text-xs font-bold text-red-600 block mb-1.5">{t("pinConfirmLabel")}</label>
+                <input type="password" maxLength={4} inputMode="numeric" placeholder={t("pinConfirmPlaceholder")} value={formCreatorPin} onChange={(e) => { setFormCreatorPin(e.target.value.replace(/\D/g, "")); setFormPinError(""); }} className="w-full rounded-xl border border-red-200 bg-white py-2.5 px-4 text-center font-sans font-bold tracking-widest text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:tracking-normal placeholder:font-normal placeholder:text-gray-400" required />
                 {formPinError && <p className="text-xs text-red-600 font-bold mt-2 text-center">{formPinError}</p>}
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t border-gray-100 mt-4 shrink-0 font-sans">
-                <button type="button" onClick={() => setIsFormModalOpen(false)} className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-400 hover:text-black">ยกเลิก</button>
+                <button type="button" onClick={() => setIsFormModalOpen(false)} className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-400 hover:text-black">{t("cancel")}</button>
                 <button type="submit" className="rounded-xl bg-black text-white px-5 py-2 text-sm font-bold hover:bg-gray-800 shadow-sm">
-                  {editingId ? "บันทึกการแก้ไข" : "สร้างรายการ"}
+                  {editingId ? t("saveEdit") : t("saveCreate")}
                 </button>
               </div>
             </form>
@@ -507,14 +512,14 @@ export default function InventoryPage() {
             <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-100">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 15v2m0-6h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
-            <h3 className="text-base font-bold text-gray-900">การยืนยันสิทธิ์เพื่อความปลอดภัย</h3>
-            <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">การกระทำนี้จำกัดสิทธิ์เฉพาะระดับผู้บริหาร <br />และผู้จัดการระบบคลังสินค้าที่ลงทะเบียนรหัสไว้เท่านั้น</p>
+            <h3 className="text-base font-bold text-gray-900">{t("authModalTitle")}</h3>
+            <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{t("authModalDesc")}</p>
             <form onSubmit={handleAuthVerification} className="mt-4 space-y-3">
               <input type="password" maxLength={4} placeholder="••••" inputMode="numeric" value={authPin} onChange={(e) => setAuthPin(e.target.value.replace(/\D/g, ""))} className="w-28 bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-center text-sm font-bold tracking-widest focus:bg-white focus:border-black outline-none transition-all font-sans" required />
               {authError && <p className="text-xs text-red-600 font-bold bg-red-50 py-1.5 px-2 rounded-xl border border-red-100">{authError}</p>}
               <div className="flex gap-2 justify-center pt-3 text-xs font-bold">
-                <button type="button" onClick={() => setIsAuthModalOpen(false)} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-gray-400 hover:border-black">ยกเลิก</button>
-                <button type="submit" className="rounded-xl bg-red-600 text-white px-4 py-2 hover:bg-red-700 shadow-sm">ยืนยันรหัสสิทธิ์</button>
+                <button type="button" onClick={() => setIsAuthModalOpen(false)} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-gray-400 hover:border-black">{t("cancel")}</button>
+                <button type="submit" className="rounded-xl bg-red-600 text-white px-4 py-2 hover:bg-red-700 shadow-sm">{t("confirmPin")}</button>
               </div>
             </form>
           </div>

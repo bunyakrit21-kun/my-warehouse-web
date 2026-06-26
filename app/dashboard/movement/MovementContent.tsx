@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useT, LangSwitcher } from "@/lib/i18n";
 
 interface Product {
   id: string;
@@ -64,6 +65,7 @@ const QUICK_CASH_REASONS = ["ซื้อวัตถุดิบ", "ค่า�
 export default function MovementPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useT();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
@@ -298,18 +300,21 @@ export default function MovementPage() {
               <p className="text-xs text-gray-500">Smart Inventory System</p>
             </div>
           </div>
-          {!isStaff && (
-            <Link href="/dashboard" className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold hover:border-black transition-all">
-              กลับหน้าหลัก
-            </Link>
-          )}
+          <div className="flex items-center gap-3">
+            <LangSwitcher />
+            {!isStaff && (
+              <Link href="/dashboard" className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold hover:border-black transition-all">
+                {t("backToHome")}
+              </Link>
+            )}
+          </div>
         </div>
       </header>
 
       <section className="mx-auto max-w-6xl px-6 py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">รับเข้า / เบิกออกสินค้า / เบิกเงิน</h1>
-          <p className="mt-1 text-sm text-gray-500">บันทึกประวัติการนำสินค้าเข้าคลัง เบิกสินค้า หรือเบิกเงินสด ตรวจสอบสิทธิ์ด้วย PIN ด่วน</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("movementTitle")}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t("movementDesc")}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
@@ -317,25 +322,25 @@ export default function MovementPage() {
           <div className={`md:col-span-2 rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 ${
             type === "MOVE_IN" ? "border-green-400" : type === "MOVE_OUT" ? "border-red-400" : "border-orange-400"
           }`}>
-            <h2 className="text-base font-bold text-gray-800 mb-5">บันทึกรายการใหม่</h2>
+            <h2 className="text-base font-bold text-gray-800 mb-5">{t("newRecord")}</h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">
 
               {/* Type */}
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-2">Transaction Type</label>
+                <label className="text-xs font-semibold text-gray-600 block mb-2">{t("transactionType")}</label>
                 <div className="grid grid-cols-3 gap-2 bg-gray-100 p-1 rounded-xl">
                   <button type="button" onClick={() => { setType("MOVE_IN"); setQty(1); }}
                     className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "MOVE_IN" ? "bg-green-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
-                    รับเข้าสินค้า
+                    {t("moveIn")}
                   </button>
                   <button type="button" onClick={() => { setType("MOVE_OUT"); setQty(1); }}
                     className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "MOVE_OUT" ? "bg-red-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
-                    เบิกออกสินค้า
+                    {t("moveOut")}
                   </button>
                   <button type="button" onClick={() => setType("CASH_OUT")}
                     className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "CASH_OUT" ? "bg-orange-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
-                    เบิกเงิน
+                    {t("cashOut")}
                   </button>
                 </div>
               </div>
@@ -344,9 +349,9 @@ export default function MovementPage() {
                 <>
                   {/* จำนวนเงิน */}
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">จำนวนเงิน (บาท)</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">{t("cashAmountLabel")}</label>
                     <input
-                      type="number" min="1" placeholder="ระบุจำนวนเงิน" value={cashAmount}
+                      type="number" min="1" placeholder={t("cashAmountPlaceholder")} value={cashAmount}
                       onChange={(e) => setCashAmount(e.target.value === "" ? "" : Number(e.target.value))}
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm font-bold outline-none focus:border-black focus:bg-white transition-all"
                       required
@@ -355,7 +360,7 @@ export default function MovementPage() {
 
                   {/* เหตุผล + Quick reasons */}
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">เหตุผลการเบิกเงิน</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">{t("cashReasonLabel")}</label>
                     <div className="flex gap-2 mb-2 flex-wrap">
                       {QUICK_CASH_REASONS.map((q) => (
                         <button key={q} type="button" onClick={() => setCashReason(q)}
@@ -370,7 +375,7 @@ export default function MovementPage() {
 
                   {/* รูปภาพประกอบ */}
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">แนบรูปภาพประกอบ (ไม่บังคับ)</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">{t("attachCashPhotoLabel")}</label>
                     <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
                       <input type="file" accept="image/*" onChange={handleCashImageUpload}
                         className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
@@ -392,10 +397,10 @@ export default function MovementPage() {
                   {/* Product */}
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-xs font-semibold text-gray-500">Select Product</label>
+                      <label className="text-xs font-semibold text-gray-500">{t("selectProductLabel")}</label>
                       {currentProduct && (
                         <span className="text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
-                          สต็อกคงเหลือ: <span className="text-black font-black">{currentProduct.stock}</span> {currentProduct.unit}
+                          {t("currentStock")}: <span className="text-black font-black">{currentProduct.stock}</span> {currentProduct.unit}
                         </span>
                       )}
                     </div>
@@ -405,7 +410,7 @@ export default function MovementPage() {
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm font-semibold outline-none focus:border-black focus:bg-white transition-all"
                       required
                     >
-                      <option value="">-- เลือกวัตถุดิบในระบบ DiaM --</option>
+                      <option value="">{t("selectProductPlaceholder")}</option>
                       {products.map((p) => (
                         <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
                       ))}
@@ -414,7 +419,7 @@ export default function MovementPage() {
 
                   {/* Qty */}
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-2">Quantity & Unit</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-2">{t("qtyUnitLabel")}</label>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-full sm:w-auto">
                         {[1, 2, 3, 4, 5].map((num) => (
@@ -432,7 +437,7 @@ export default function MovementPage() {
                           required
                         />
                         <span className="text-sm font-bold text-gray-500 min-w-[80px] bg-gray-100 border border-gray-200 rounded-xl py-2.5 text-center">
-                          {currentProduct ? currentProduct.unit : "หน่วย"}
+                          {currentProduct ? currentProduct.unit : t("unitFallback")}
                         </span>
                       </div>
                     </div>
@@ -445,7 +450,7 @@ export default function MovementPage() {
 
                   {/* Note + Quick Notes */}
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">Note (Optional)</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">{t("noteLabel")}</label>
                     <div className="flex gap-2 mb-2">
                       {QUICK_NOTES.map((q) => (
                         <button key={q} type="button" onClick={() => setNote(q)}
@@ -460,7 +465,7 @@ export default function MovementPage() {
 
                   {/* Image Upload */}
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">แนบรูปภาพ (Optional)</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">{t("attachPhotoLabel")}</label>
                     <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
                       <input type="file" accept="image/*" onChange={handleImageUpload}
                         className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
@@ -481,11 +486,11 @@ export default function MovementPage() {
 
               {/* PIN */}
               <div className="pt-3 border-t border-gray-100">
-                <label className="text-xs font-bold text-gray-700 block mb-2">ยืนยันตัวตนผู้รับผิดชอบรายการ (PIN 4 หลัก)</label>
+                <label className="text-xs font-bold text-gray-700 block mb-2">{t("pinLabel")}</label>
                 <div className="flex items-center gap-4">
                   <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={pin} onChange={handlePinChange}
                     className="w-28 rounded-xl border border-gray-200 bg-gray-50 py-2 px-3 text-center text-lg font-black tracking-widest focus:border-black focus:bg-white outline-none transition-all" required />
-                  {verifyingPin && <span className="text-xs text-gray-400">กำลังตรวจสอบ...</span>}
+                  {verifyingPin && <span className="text-xs text-gray-400">{t("verifying")}</span>}
                   {!verifyingPin && employeeName && (
                     <span className={`text-xs font-bold px-3 py-2 rounded-xl border ${employeeName.includes("❌") ? "bg-red-50 text-red-600 border-red-100" : "bg-green-50 text-green-700 border-green-100"}`}>
                       {employeeName}
@@ -501,7 +506,7 @@ export default function MovementPage() {
                   type === "MOVE_IN" ? "bg-green-600 hover:bg-green-700" : type === "MOVE_OUT" ? "bg-red-600 hover:bg-red-700" : "bg-orange-600 hover:bg-orange-700"
                 }`}
               >
-                {submitting ? "กำลังบันทึก..." : isCashMode ? "บันทึกรายการเบิกเงิน" : type === "MOVE_IN" ? "บันทึกนำสินค้าเข้าคลังวัตถุดิบ" : "บันทึกตัดยอดเบิกสินค้าออกจากคลัง"}
+                {submitting ? t("saving") : isCashMode ? t("submitCash") : type === "MOVE_IN" ? t("submitMoveIn") : t("submitMoveOut")}
               </button>
             </form>
           </div>
@@ -523,26 +528,26 @@ export default function MovementPage() {
 
         {/* ตารางประวัติสินค้า */}
         <div className="mt-10">
-          <h2 className="text-xl font-bold tracking-tight mb-4">ประวัติสตรีมคลังล่าสุดวันนี้</h2>
+          <h2 className="text-xl font-bold tracking-tight mb-4">{t("historyTitle")}</h2>
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50/70 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                    <th className="px-6 py-4">ID Log</th>
-                    <th className="px-6 py-4">เวลา</th>
-                    <th className="px-6 py-4">ประเภทรายการ</th>
-                    <th className="px-6 py-4">วัตถุดิบ/สินค้า</th>
-                    <th className="px-6 py-4 text-center">จำนวนยอด</th>
-                    <th className="px-6 py-4">หน่วยนับ</th>
-                    <th className="px-6 py-4">บันทึกหมายเหตุ</th>
-                    <th className="px-6 py-4">ผู้จัดการ</th>
+                    <th className="px-6 py-4">{t("colLogId")}</th>
+                    <th className="px-6 py-4">{t("colTime")}</th>
+                    <th className="px-6 py-4">{t("colType")}</th>
+                    <th className="px-6 py-4">{t("colProduct")}</th>
+                    <th className="px-6 py-4 text-center">{t("colQty")}</th>
+                    <th className="px-6 py-4">{t("colUnit")}</th>
+                    <th className="px-6 py-4">{t("colNote")}</th>
+                    <th className="px-6 py-4">{t("colManager")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-gray-700">
                   {movements.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-400">ยังไม่มีรายการในระบบ</td>
+                      <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-400">{t("noMovements")}</td>
                     </tr>
                   ) : (
                     movements.map((m) => (
@@ -551,8 +556,8 @@ export default function MovementPage() {
                         <td className="whitespace-nowrap px-6 py-4 text-xs text-gray-500">{m.time}</td>
                         <td className="whitespace-nowrap px-6 py-4">
                           {m.type === "MOVE_IN"
-                            ? <span className="inline-flex rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700 border border-green-100">รับเข้า</span>
-                            : <span className="inline-flex rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700 border border-red-100">เบิกออก</span>
+                            ? <span className="inline-flex rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700 border border-green-100">{t("typeIn")}</span>
+                            : <span className="inline-flex rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700 border border-red-100">{t("typeOut")}</span>
                           }
                         </td>
                         <td className="px-6 py-4 font-semibold text-gray-900">{m.itemName}</td>
@@ -573,23 +578,23 @@ export default function MovementPage() {
 
         {/* ตารางประวัติเบิกเงิน */}
         <div className="mt-10">
-          <h2 className="text-xl font-bold tracking-tight mb-4">ประวัติการเบิกเงินล่าสุด</h2>
+          <h2 className="text-xl font-bold tracking-tight mb-4">{t("cashHistoryTitle")}</h2>
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50/70 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                    <th className="px-6 py-4">ID Log</th>
-                    <th className="px-6 py-4">เวลา</th>
-                    <th className="px-6 py-4 text-center">จำนวนเงิน</th>
-                    <th className="px-6 py-4">เหตุผล</th>
-                    <th className="px-6 py-4">ผู้เบิก</th>
+                    <th className="px-6 py-4">{t("colLogId")}</th>
+                    <th className="px-6 py-4">{t("colTime")}</th>
+                    <th className="px-6 py-4 text-center">{t("colAmount")}</th>
+                    <th className="px-6 py-4">{t("colReason")}</th>
+                    <th className="px-6 py-4">{t("colWithdrawBy")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-gray-700">
                   {cashWithdrawals.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-400">ยังไม่มีรายการเบิกเงินในระบบ</td>
+                      <td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-400">{t("noCash")}</td>
                     </tr>
                   ) : (
                     cashWithdrawals.map((c) => (

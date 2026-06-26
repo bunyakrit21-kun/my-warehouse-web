@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useT, LangSwitcher } from "@/lib/i18n";
 
 interface Summary {
   total_in: number;
@@ -32,8 +33,9 @@ interface DailyTrend {
 type ChartType = "bar" | "stacked" | "table";
 type Range = "today" | "week" | "month";
 
-const RANGE_LABEL: Record<Range, string> = { today: "วันนี้", week: "7 วันล่าสุด", month: "30 วันล่าสุด" };
-const CHART_LABEL: Record<ChartType, string> = { bar: "กราฟแท่ง", stacked: "สัดส่วน", table: "ตาราง" };
+// Labels are built inside the component using t()
+const RANGE_KEYS: Range[] = ["today", "week", "month"];
+const CHART_KEYS: ChartType[] = ["bar", "stacked", "table"];
 
 function exportCSV(filename: string, headers: string[], rows: (string | number)[][]) {
   const bom = "﻿";
@@ -48,6 +50,9 @@ function exportCSV(filename: string, headers: string[], rows: (string | number)[
 }
 
 export default function ReportsPage() {
+  const { t } = useT();
+  const RANGE_LABEL: Record<Range, string> = { today: t("today"), week: t("week"), month: t("month") };
+  const CHART_LABEL: Record<ChartType, string> = { bar: t("barChart"), stacked: t("stackedChart"), table: t("tableView") };
   const [range, setRange] = useState<Range>("week");
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -133,12 +138,15 @@ export default function ReportsPage() {
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-black text-white font-black text-base">D</div>
             <div className="leading-tight">
               <p className="text-base font-bold">DiaM</p>
-              <p className="text-xs text-gray-400">รายงานและสถิติ</p>
+              <p className="text-xs text-gray-400">{t("reportsTitle")}</p>
             </div>
           </div>
-          <Link href="/dashboard" className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold hover:border-black transition-all">
-            กลับหน้าหลัก
-          </Link>
+          <div className="flex items-center gap-3">
+            <LangSwitcher />
+            <Link href="/dashboard" className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold hover:border-black transition-all">
+              {t("backToHome")}
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -147,13 +155,13 @@ export default function ReportsPage() {
         {/* Controls row */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold">รายงานและสถิติ</h1>
-            <p className="mt-0.5 text-sm text-gray-500">ข้อมูลจากระบบคลังสินค้า — {RANGE_LABEL[range]}</p>
+            <h1 className="text-2xl font-bold">{t("reportsTitle")}</h1>
+            <p className="mt-0.5 text-sm text-gray-500">{t("reportsSubtitle")} — {RANGE_LABEL[range]}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Range */}
             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
-              {(["today", "week", "month"] as Range[]).map(r => (
+              {RANGE_KEYS.map(r => (
                 <button key={r} onClick={() => setRange(r)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${range === r ? "bg-white text-black shadow-sm" : "text-gray-500 hover:text-black"}`}>
                   {RANGE_LABEL[r]}
@@ -162,7 +170,7 @@ export default function ReportsPage() {
             </div>
             {/* Chart type */}
             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
-              {(["bar", "stacked", "table"] as ChartType[]).map(c => (
+              {CHART_KEYS.map(c => (
                 <button key={c} onClick={() => setChartType(c)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${chartType === c ? "bg-white text-black shadow-sm" : "text-gray-500 hover:text-black"}`}>
                   {CHART_LABEL[c]}
@@ -175,7 +183,7 @@ export default function ReportsPage() {
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                ดาวน์โหลด
+                {t("download")}
               </button>
               <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-gray-200 bg-white shadow-lg z-10 hidden group-hover:block">
                 <button onClick={handleExportMovements} className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-gray-50 rounded-t-xl">
@@ -193,7 +201,7 @@ export default function ReportsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-20 text-sm text-gray-400">กำลังโหลดข้อมูล...</div>
+          <div className="text-center py-20 text-sm text-gray-400">{t("loadingData")}</div>
         ) : (
           <>
             {/* Quick Stats */}

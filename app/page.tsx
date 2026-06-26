@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useT, LangSwitcher } from "@/lib/i18n";
 
 const BACKGROUND_IMAGES = [
   "https://images.unsplash.com/photo-1586528116311-ad8ed7c1590f?q=80&w=2070&auto=format&fit=crop",
@@ -12,6 +13,7 @@ const BACKGROUND_IMAGES = [
 
 export default function LandingPage() {
   const router = useRouter();
+  const { t } = useT();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
@@ -62,10 +64,11 @@ export default function LandingPage() {
           <span className="text-xl font-black tracking-widest uppercase">DiaM</span>
         </div>
 
-        <div className="flex items-center gap-6">
-          <Link href="/login" className="text-sm font-medium text-gray-300 hover:text-white transition">เข้าสู่ระบบ</Link>
-          <Link href="/signup" className="rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-5 py-2.5 text-sm font-semibold hover:bg-white hover:text-black transition-all"> 
-            สมัครใช้งาน
+        <div className="flex items-center gap-4">
+          <LangSwitcher variant="dark" />
+          <Link href="/login" className="text-sm font-medium text-gray-300 hover:text-white transition">{t("login")}</Link>
+          <Link href="/signup" className="rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-5 py-2.5 text-sm font-semibold hover:bg-white hover:text-black transition-all">
+            {t("signup")}
           </Link>
         </div>
       </header>
@@ -73,22 +76,22 @@ export default function LandingPage() {
       <div className="relative z-10 flex flex-col items-center justify-center w-full h-full px-6 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 rounded-full border border-white/10 bg-white/5 backdrop-blur-md text-[10px] font-bold tracking-[0.2em] uppercase text-gray-300">
           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-          Cloud Native Inventory
+          {t("landingBadge")}
         </div>
 
-        <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-6 text-white drop-shadow-2xl">
-          Inventory <br/>Control.
+        <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-6 text-white drop-shadow-2xl whitespace-pre-line">
+          {t("landingHeadline")}
         </h1>
-        
+
         <p className="max-w-xl text-lg font-light text-gray-300 mb-10 leading-relaxed">
-          บริหารจัดการสต็อกวัตถุดิบและรายการเคลื่อนไหวคลังแบบเรียลไทม์ เชื่อมต่อด้วยฐานข้อมูล Cloud มาตรฐานระดับสากล
+          {t("landingDesc")}
         </p>
 
-        <button 
+        <button
           onClick={handleStartClick}
           className="group flex items-center gap-3 rounded-full bg-white px-10 py-4 text-sm font-bold text-black transition-transform hover:scale-105 active:scale-95"
         >
-          เริ่มต้นเข้าใช้งานระบบ
+          {t("getStarted")}
           <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
         </button>
       </div>
