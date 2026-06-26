@@ -27,7 +27,39 @@ interface Movement {
   user: string;
 }
 
+interface CashWithdrawal {
+  id: string;
+  time: string;
+  amount: number;
+  reason: string;
+  user: string;
+}
+
+interface RawMovement {
+  id: number;
+  created_at: string;
+  type: string;
+  qty: number;
+  note: string | null;
+  employee_pin: string | null;
+  product_name: string | null;
+  unit: string | null;
+  employee_name: string | null;
+  itemName?: string;
+  user?: string;
+}
+
+interface RawCashWithdrawal {
+  id: number;
+  amount: number;
+  reason: string;
+  employee_pin: string | null;
+  created_at: string;
+  employee_name: string | null;
+}
+
 const QUICK_NOTES = ["เติมสต็อกของ", "เบิกไปใช้ครัว", "ของชำรุด"];
+const QUICK_CASH_REASONS = ["ซื้อวัตถุดิบ", "ค่าขนส่ง", "ค่าใช้จ่ายเบ็ดเตล็ด"];
 
 export default function MovementPage() {
   const router = useRouter();
@@ -35,6 +67,7 @@ export default function MovementPage() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [cashWithdrawals, setCashWithdrawals] = useState<CashWithdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -44,6 +77,11 @@ export default function MovementPage() {
   const [qty, setQty] = useState<number | "">(1);
   const [note, setNote] = useState("");
   const [imageFile, setImageFile] = useState("");
+
+  // Cash withdrawal fields
+  const [cashAmount, setCashAmount] = useState<number | "">("");
+  const [cashReason, setCashReason] = useState("");
+
   const [pin, setPin] = useState("");
   const [employeeName, setEmployeeName] = useState("");
   const [verifyingPin, setVerifyingPin] = useState(false);
@@ -54,17 +92,19 @@ export default function MovementPage() {
     if (paramType === "MOVE_IN" || paramType === "MOVE_OUT") setType(paramType);
 
     try {
-      const [resP, resM] = await Promise.all([
+      const [resP, resM, resC] = await Promise.all([
         fetch("/api/products", { cache: "no-store" }),
         fetch("/api/movements", { cache: "no-store" }),
+        fetch("/api/cash-withdrawals", { cache: "no-store" }),
       ]);
 
       const productsData: Product[] = await resP.json();
       const movementsRaw = await resM.json();
+      const cashRaw = await resC.json();
 
       setProducts(productsData);
 
-      const formatted: Movement[] = movementsRaw.map((m: any) => ({
+      const formatted: Movement[] = movementsRaw.map((m: RawMovement) => ({
         id: `MV-${String(m.id).padStart(4, "0")}`,
         time: new Date(m.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.",
         type: m.type,
@@ -75,6 +115,15 @@ export default function MovementPage() {
         user: m.employee_name ?? m.employee_pin ?? m.user ?? "-",
       }));
       setMovements(formatted);
+
+      const formattedCash: CashWithdrawal[] = (cashRaw ?? []).map((c: RawCashWithdrawal) => ({
+        id: `CW-${String(c.id).padStart(4, "0")}`,
+        time: new Date(c.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.",
+        amount: c.amount,
+        reason: c.reason,
+        user: c.employee_name ?? c.employee_pin ?? "-",
+      }));
+      setCashWithdrawals(formattedCash);
 
       if (paramProductId && productsData.some((p) => p.id === paramProductId)) {
         setSelectedProductId(paramProductId);
@@ -93,6 +142,7 @@ export default function MovementPage() {
 
   const currentProduct = products.find((p) => p.id === selectedProductId);
   const isOverStocked = type === "MOVE_OUT" && currentProduct && Number(qty) > currentProduct.stock;
+  const isCashMode = type === "CASH_OUT";
 
   const handlePinChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "");
@@ -128,14 +178,45 @@ export default function MovementPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedProductId || !currentProduct) return alert("กรุณาเลือกสินค้าวัตถุดิบในคลัง");
-    if (!qty || Number(qty) <= 0) return alert("กรุณาระบุจำนวนที่ถูกต้อง");
-    if (isOverStocked) return alert("ไม่สามารถทำรายการได้เนื่องจากยอดเบิกเกินจำนวนสินค้าคงเหลือ");
+
     if (pin.length !== 4 || employeeName.includes("❌") || !employeeName) {
       return alert("กรุณากรอกรหัสพนักงานให้ถูกต้อง");
     }
+
+    if (isCashMode) {
+      if (!cashAmount || Number(cashAmount) <= 0) return alert("กรุณาระบุจำนวนเงินที่ถูกต้อง");
+      if (!cashReason.trim()) return alert("กรุณาระบุเหตุผลการเบิกเงิน");
+
+      setSubmitting(true);
+      try {
+        const res = await fetch("/api/cash-withdrawals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: Number(cashAmount),
+            reason: cashReason.trim(),
+            pin,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
+
+        alert("📢 บันทึกรายการเบิกเงินสำเร็จ!");
+        router.push("/dashboard");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
+        alert(`❌ บันทึกไม่สำเร็จ: ${msg}`);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    if (!selectedProductId || !currentProduct) return alert("กรุณาเลือกสินค้าวัตถุดิบในคลัง");
+    if (!qty || Number(qty) <= 0) return alert("กรุณาระบุจำนวนที่ถูกต้อง");
+    if (isOverStocked) return alert("ไม่สามารถทำรายการได้เนื่องจากยอดเบิกเกินจำนวนสินค้าคงเหลือ");
 
     setSubmitting(true);
     try {
@@ -157,8 +238,9 @@ export default function MovementPage() {
 
       alert("📢 บันทึกรายการสำเร็จ!");
       router.push("/dashboard");
-    } catch (err: any) {
-      alert(`❌ บันทึกไม่สำเร็จ: ${err.message}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
+      alert(`❌ บันทึกไม่สำเร็จ: ${msg}`);
     } finally {
       setSubmitting(false);
     }
@@ -167,6 +249,10 @@ export default function MovementPage() {
   if (!mounted || loading) {
     return <div className="p-8 text-center text-sm font-sans text-gray-400">กำลังดึงฐานข้อมูลคลัง...</div>;
   }
+
+  const canSubmit = isCashMode
+    ? !!cashAmount && Number(cashAmount) > 0 && !!cashReason.trim() && pin.length === 4 && !!employeeName && !employeeName.includes("❌")
+    : !!selectedProductId && pin.length === 4 && !!employeeName && !employeeName.includes("❌") && !isOverStocked;
 
   return (
     <main className="min-h-screen bg-gray-50 text-black font-sans antialiased pb-12">
@@ -192,121 +278,157 @@ export default function MovementPage() {
 
       <section className="mx-auto max-w-6xl px-6 py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">รับเข้า / เบิกออกสินค้า</h1>
-          <p className="mt-1 text-sm text-gray-500">บันทึกประวัติการนำสินค้าเข้าคลัง หรือเบิกสินค้าออกไปใช้งาน ตรวจสอบสิทธิ์ด้วย PIN ด่วน</p>
+          <h1 className="text-3xl font-bold tracking-tight">รับเข้า / เบิกออกสินค้า / เบิกเงิน</h1>
+          <p className="mt-1 text-sm text-gray-500">บันทึกประวัติการนำสินค้าเข้าคลัง เบิกสินค้า หรือเบิกเงินสด ตรวจสอบสิทธิ์ด้วย PIN ด่วน</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
 
           <div className={`md:col-span-2 rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 ${
-            type === "MOVE_IN" ? "border-green-400" : "border-red-400"
+            type === "MOVE_IN" ? "border-green-400" : type === "MOVE_OUT" ? "border-red-400" : "border-orange-400"
           }`}>
-            <h2 className="text-base font-bold text-gray-800 mb-5">บันทึกรายการสต็อกใหม่</h2>
+            <h2 className="text-base font-bold text-gray-800 mb-5">บันทึกรายการใหม่</h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">
 
               {/* Type */}
               <div>
                 <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-2">Transaction Type</label>
-                <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
+                <div className="grid grid-cols-3 gap-2 bg-gray-100 p-1 rounded-xl">
                   <button type="button" onClick={() => { setType("MOVE_IN"); setQty(1); }}
-                    className={`py-2 text-sm font-bold rounded-lg transition-all ${type === "MOVE_IN" ? "bg-green-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
-                    📢 รับเข้าสินค้า (Stock In)
+                    className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "MOVE_IN" ? "bg-green-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
+                    รับเข้าสินค้า
                   </button>
                   <button type="button" onClick={() => { setType("MOVE_OUT"); setQty(1); }}
-                    className={`py-2 text-sm font-bold rounded-lg transition-all ${type === "MOVE_OUT" ? "bg-red-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
-                    📤 เบิกออกสินค้า (Stock Out)
+                    className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "MOVE_OUT" ? "bg-red-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
+                    เบิกออกสินค้า
+                  </button>
+                  <button type="button" onClick={() => setType("CASH_OUT")}
+                    className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "CASH_OUT" ? "bg-orange-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
+                    เบิกเงิน
                   </button>
                 </div>
               </div>
 
-              {/* Product */}
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">Select Product</label>
-                  {currentProduct && (
-                    <span className="text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
-                      สต็อกคงเหลือ: <span className="text-black font-black">{currentProduct.stock}</span> {currentProduct.unit}
-                    </span>
-                  )}
-                </div>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => { setSelectedProductId(e.target.value); setQty(1); }}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm font-semibold outline-none focus:border-black focus:bg-white transition-all"
-                  required
-                >
-                  <option value="">-- เลือกวัตถุดิบในระบบ DiaM --</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Qty */}
-              <div>
-                <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-2">Quantity & Unit</label>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-full sm:w-auto">
-                    {[1, 2, 3, 4, 5].map((num) => (
-                      <button key={num} type="button" onClick={() => setQty(num)}
-                        className={`w-11 h-10 rounded-lg text-sm font-bold transition-all ${Number(qty) === num ? "bg-black text-white shadow-sm" : "text-gray-500 hover:text-black"}`}>
-                        {num}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex flex-1 items-center gap-3">
+              {isCashMode ? (
+                <>
+                  {/* จำนวนเงิน */}
+                  <div>
+                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">จำนวนเงิน (บาท)</label>
                     <input
-                      type="number" min="1" placeholder="ระบุจำนวน" value={qty}
-                      onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))}
-                      className={`w-full rounded-xl border py-2.5 px-4 text-sm text-center font-bold outline-none transition-all ${isOverStocked ? "border-red-500 bg-red-50 text-red-900" : "border-gray-200 bg-gray-50 focus:border-black focus:bg-white"}`}
+                      type="number" min="1" placeholder="ระบุจำนวนเงิน" value={cashAmount}
+                      onChange={(e) => setCashAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm font-bold outline-none focus:border-black focus:bg-white transition-all"
                       required
                     />
-                    <span className="text-sm font-bold text-gray-500 min-w-[80px] bg-gray-100 border border-gray-200 rounded-xl py-2.5 text-center">
-                      {currentProduct ? currentProduct.unit : "หน่วย"}
-                    </span>
                   </div>
-                </div>
-                {isOverStocked && (
-                  <p className="text-xs font-semibold text-red-600 mt-2">
-                    ⚠️ ยอดเบิกเกินสต็อกจริง (เบิกได้เพียง {currentProduct.stock} {currentProduct.unit})
-                  </p>
-                )}
-              </div>
 
-              {/* Note + Quick Notes */}
-              <div>
-                <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Note (Optional)</label>
-                <div className="flex gap-2 mb-2">
-                  {QUICK_NOTES.map((q) => (
-                    <button key={q} type="button" onClick={() => setNote(q)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${note === q ? "bg-black text-white border-black" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`}>
-                      {q}
-                    </button>
-                  ))}
-                </div>
-                <textarea rows={2} placeholder="หรือพิมพ์หมายเหตุเอง..." value={note} onChange={(e) => setNote(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
-              </div>
-
-              {/* Image Upload */}
-              <div>
-                <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">แนบรูปภาพ (Optional)</label>
-                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
-                  <input type="file" accept="image/*" onChange={handleImageUpload}
-                    className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
-                </div>
-                {imageFile && (
-                  <div className="mt-2 relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imageFile} alt="preview" className="w-full h-full object-cover" />
-                    <button type="button" onClick={() => setImageFile("")}
-                      className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold">
-                      ลบ
-                    </button>
+                  {/* เหตุผล + Quick reasons */}
+                  <div>
+                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">เหตุผลการเบิกเงิน</label>
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      {QUICK_CASH_REASONS.map((q) => (
+                        <button key={q} type="button" onClick={() => setCashReason(q)}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${cashReason === q ? "bg-black text-white border-black" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`}>
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea rows={2} placeholder="หรือพิมพ์เหตุผลเอง..." value={cashReason} onChange={(e) => setCashReason(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
                   </div>
-                )}
-              </div>
+                </>
+              ) : (
+                <>
+                  {/* Product */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">Select Product</label>
+                      {currentProduct && (
+                        <span className="text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
+                          สต็อกคงเหลือ: <span className="text-black font-black">{currentProduct.stock}</span> {currentProduct.unit}
+                        </span>
+                      )}
+                    </div>
+                    <select
+                      value={selectedProductId}
+                      onChange={(e) => { setSelectedProductId(e.target.value); setQty(1); }}
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm font-semibold outline-none focus:border-black focus:bg-white transition-all"
+                      required
+                    >
+                      <option value="">-- เลือกวัตถุดิบในระบบ DiaM --</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Qty */}
+                  <div>
+                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-2">Quantity & Unit</label>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-full sm:w-auto">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <button key={num} type="button" onClick={() => setQty(num)}
+                            className={`w-11 h-10 rounded-lg text-sm font-bold transition-all ${Number(qty) === num ? "bg-black text-white shadow-sm" : "text-gray-500 hover:text-black"}`}>
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex flex-1 items-center gap-3">
+                        <input
+                          type="number" min="1" placeholder="ระบุจำนวน" value={qty}
+                          onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))}
+                          className={`w-full rounded-xl border py-2.5 px-4 text-sm text-center font-bold outline-none transition-all ${isOverStocked ? "border-red-500 bg-red-50 text-red-900" : "border-gray-200 bg-gray-50 focus:border-black focus:bg-white"}`}
+                          required
+                        />
+                        <span className="text-sm font-bold text-gray-500 min-w-[80px] bg-gray-100 border border-gray-200 rounded-xl py-2.5 text-center">
+                          {currentProduct ? currentProduct.unit : "หน่วย"}
+                        </span>
+                      </div>
+                    </div>
+                    {isOverStocked && (
+                      <p className="text-xs font-semibold text-red-600 mt-2">
+                        ⚠️ ยอดเบิกเกินสต็อกจริง (เบิกได้เพียง {currentProduct.stock} {currentProduct.unit})
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Note + Quick Notes */}
+                  <div>
+                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Note (Optional)</label>
+                    <div className="flex gap-2 mb-2">
+                      {QUICK_NOTES.map((q) => (
+                        <button key={q} type="button" onClick={() => setNote(q)}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${note === q ? "bg-black text-white border-black" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`}>
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea rows={2} placeholder="หรือพิมพ์หมายเหตุเอง..." value={note} onChange={(e) => setNote(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
+                  </div>
+
+                  {/* Image Upload */}
+                  <div>
+                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">แนบรูปภาพ (Optional)</label>
+                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
+                      <input type="file" accept="image/*" onChange={handleImageUpload}
+                        className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
+                    </div>
+                    {imageFile && (
+                      <div className="mt-2 relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={imageFile} alt="preview" className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => setImageFile("")}
+                          className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold">
+                          ลบ
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               {/* PIN */}
               <div className="pt-3 border-t border-gray-100">
@@ -325,10 +447,12 @@ export default function MovementPage() {
 
               <button
                 type="submit"
-                disabled={!selectedProductId || pin.length !== 4 || !employeeName || employeeName.includes("❌") || !!isOverStocked || submitting || verifyingPin}
-                className={`w-full rounded-xl py-3.5 text-sm font-semibold text-white transition-all disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm ${type === "MOVE_IN" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}
+                disabled={!canSubmit || submitting || verifyingPin}
+                className={`w-full rounded-xl py-3.5 text-sm font-semibold text-white transition-all disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm ${
+                  type === "MOVE_IN" ? "bg-green-600 hover:bg-green-700" : type === "MOVE_OUT" ? "bg-red-600 hover:bg-red-700" : "bg-orange-600 hover:bg-orange-700"
+                }`}
               >
-                {submitting ? "กำลังบันทึก..." : type === "MOVE_IN" ? "บันทึกนำสินค้าเข้าคลังวัตถุดิบ" : "บันทึกตัดยอดเบิกสินค้าออกจากคลัง"}
+                {submitting ? "กำลังบันทึก..." : isCashMode ? "บันทึกรายการเบิกเงิน" : type === "MOVE_IN" ? "บันทึกนำสินค้าเข้าคลังวัตถุดิบ" : "บันทึกตัดยอดเบิกสินค้าออกจากคลัง"}
               </button>
             </form>
           </div>
@@ -341,13 +465,14 @@ export default function MovementPage() {
                 <li>• เลือกวัตถุดิบจากระบบเพื่อล็อกหน่วยนับโดยอัตโนมัติ</li>
                 <li>• ระบบจะป้องกันการเบิกของติดลบ (&apos;Data Integrity Guard&apos;)</li>
                 <li>• กดปุ่มโน้ตลัดเพื่อเลือกหมายเหตุที่ใช้บ่อย</li>
+                <li>• เบิกเงินต้องระบุจำนวนเงินและเหตุผลทุกครั้ง</li>
               </ul>
             </div>
             <div className="text-[10px] font-mono text-gray-400 mt-6 border-t border-gray-100 pt-3">SECURITY STATE: PIN REQUIRED</div>
           </div>
         </div>
 
-        {/* ตารางประวัติ */}
+        {/* ตารางประวัติสินค้า */}
         <div className="mt-10">
           <h2 className="text-xl font-bold tracking-tight mb-4">ประวัติสตรีมคลังล่าสุดวันนี้</h2>
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -388,6 +513,45 @@ export default function MovementPage() {
                         <td className="whitespace-nowrap px-6 py-4 text-xs text-gray-500 font-medium">{m.unit}</td>
                         <td className="px-6 py-4 text-gray-500 text-xs max-w-xs truncate">{m.note}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-gray-800 font-semibold text-xs">{m.user}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* ตารางประวัติเบิกเงิน */}
+        <div className="mt-10">
+          <h2 className="text-xl font-bold tracking-tight mb-4">ประวัติการเบิกเงินล่าสุด</h2>
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50/70 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    <th className="px-6 py-4">ID Log</th>
+                    <th className="px-6 py-4">เวลา</th>
+                    <th className="px-6 py-4 text-center">จำนวนเงิน</th>
+                    <th className="px-6 py-4">เหตุผล</th>
+                    <th className="px-6 py-4">ผู้เบิก</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-gray-700">
+                  {cashWithdrawals.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-400">ยังไม่มีรายการเบิกเงินในระบบ</td>
+                    </tr>
+                  ) : (
+                    cashWithdrawals.map((c) => (
+                      <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="whitespace-nowrap px-6 py-4 font-mono text-xs text-gray-400">{c.id}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-xs text-gray-500">{c.time}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-center font-black text-base text-orange-600">
+                          -{Number(c.amount).toLocaleString()} บาท
+                        </td>
+                        <td className="px-6 py-4 text-gray-700 text-xs max-w-xs truncate">{c.reason}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-gray-800 font-semibold text-xs">{c.user}</td>
                       </tr>
                     ))
                   )}
