@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ name: user.name, role: user.role });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

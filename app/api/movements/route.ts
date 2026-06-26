@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
+import { getUser } from "@/lib/auth";
+
+const VALID_TYPES = ["MOVE_IN", "MOVE_OUT"] as const;
 
 export async function GET() {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const movements = await sql`
-      SELECT 
+      SELECT
         m.id,
         m.created_at,
         m.type,
@@ -21,18 +27,25 @@ export async function GET() {
       LIMIT 50
     `;
     return NextResponse.json(movements);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const body = await request.json();
     const { productId, type, qty, note, pin } = body;
 
     if (!productId || !qty || qty <= 0) {
       return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
+    }
+
+    if (!VALID_TYPES.includes(type)) {
+      return NextResponse.json({ error: "ประเภทการเคลื่อนย้ายไม่ถูกต้อง" }, { status: 400 });
     }
 
     const result = await sql.begin(async (sql) => {
@@ -63,7 +76,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error("Movement API Error:", error);
-    return NextResponse.json({ error: error.message || "เกิดข้อผิดพลาด" }, { status: 400 });
+    const known = ["ไม่พบสินค้า", "สต็อกไม่เพียงพอสำหรับการเบิก"];
+    const msg = known.includes(error.message) ? error.message : "เกิดข้อผิดพลาด";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

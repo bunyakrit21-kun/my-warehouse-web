@@ -1,0 +1,25 @@
+import { NextResponse } from "next/server";
+import sql from "@/lib/db";
+import { getUser } from "@/lib/auth";
+
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const [store] = await sql`SELECT owner_id FROM stores WHERE id = ${id}`;
+  if (!store || store.owner_id !== user.id) {
+    return NextResponse.json({ error: "ไม่มีสิทธิ์จัดการร้านนี้" }, { status: 403 });
+  }
+
+  try {
+    const { name, business_type, phone } = await request.json();
+    await sql`
+      UPDATE stores SET name = ${name}, business_type = ${business_type}, phone = ${phone}
+      WHERE id = ${id}
+    `;
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
+  }
+}

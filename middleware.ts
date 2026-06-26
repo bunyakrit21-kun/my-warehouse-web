@@ -6,9 +6,6 @@ export default async function proxy(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
   const { pathname } = request.nextUrl;
 
-  const adminOnlyPaths = ["/dashboard/admin"];
-  const isAdminOnly = adminOnlyPaths.some((p) => pathname.startsWith(p));
-
   if (!pathname.startsWith("/dashboard")) return NextResponse.next();
 
   if (!token) {
@@ -19,7 +16,13 @@ export default async function proxy(request: NextRequest) {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
     const { payload } = await jwtVerify(token, secret);
 
-    if (isAdminOnly && payload.role !== "admin") {
+    // พนักงาน (type: staff) เข้าได้แค่ /dashboard/movement
+    if (payload.type === "staff" && !pathname.startsWith("/dashboard/movement")) {
+      return NextResponse.redirect(new URL("/dashboard/movement", request.url));
+    }
+
+    // admin only
+    if (pathname.startsWith("/dashboard/admin") && payload.role !== "admin") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
