@@ -85,6 +85,8 @@ export default function MovementPage() {
   const [pin, setPin] = useState("");
   const [employeeName, setEmployeeName] = useState("");
   const [verifyingPin, setVerifyingPin] = useState(false);
+  const [isStaff, setIsStaff] = useState(false);
+  const [cashImageFile, setCashImageFile] = useState("");
 
   const fetchData = useCallback(async () => {
     const paramProductId = searchParams.get("productId");
@@ -92,15 +94,18 @@ export default function MovementPage() {
     if (paramType === "MOVE_IN" || paramType === "MOVE_OUT") setType(paramType);
 
     try {
-      const [resP, resM, resC] = await Promise.all([
+      const [resP, resM, resC, resMe] = await Promise.all([
         fetch("/api/products", { cache: "no-store" }),
         fetch("/api/movements", { cache: "no-store" }),
         fetch("/api/cash-withdrawals", { cache: "no-store" }),
+        fetch("/api/auth/me", { cache: "no-store" }),
       ]);
 
       const productsData: Product[] = await resP.json();
       const movementsRaw = await resM.json();
       const cashRaw = await resC.json();
+      const meData = await resMe.json();
+      if (meData?.user?.type === "staff") setIsStaff(true);
 
       setProducts(productsData);
 
@@ -167,6 +172,17 @@ export default function MovementPage() {
     }
   };
 
+  const handleCashImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") setCashImageFile(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -198,6 +214,7 @@ export default function MovementPage() {
             amount: Number(cashAmount),
             reason: cashReason.trim(),
             pin,
+            image: cashImageFile || "",
           }),
         });
         const data = await res.json();
@@ -270,9 +287,11 @@ export default function MovementPage() {
               <p className="text-xs text-gray-500">Smart Inventory System</p>
             </div>
           </div>
-          <Link href="/dashboard" className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold hover:border-black transition-all">
-            กลับหน้าเริ่มต้น
-          </Link>
+          {!isStaff && (
+            <Link href="/dashboard" className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold hover:border-black transition-all">
+              กลับหน้าหลัก
+            </Link>
+          )}
         </div>
       </header>
 
@@ -293,7 +312,7 @@ export default function MovementPage() {
 
               {/* Type */}
               <div>
-                <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-2">Transaction Type</label>
+                <label className="text-xs font-semibold text-gray-600 block mb-2">Transaction Type</label>
                 <div className="grid grid-cols-3 gap-2 bg-gray-100 p-1 rounded-xl">
                   <button type="button" onClick={() => { setType("MOVE_IN"); setQty(1); }}
                     className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "MOVE_IN" ? "bg-green-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
@@ -314,7 +333,7 @@ export default function MovementPage() {
                 <>
                   {/* จำนวนเงิน */}
                   <div>
-                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">จำนวนเงิน (บาท)</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">จำนวนเงิน (บาท)</label>
                     <input
                       type="number" min="1" placeholder="ระบุจำนวนเงิน" value={cashAmount}
                       onChange={(e) => setCashAmount(e.target.value === "" ? "" : Number(e.target.value))}
@@ -325,7 +344,7 @@ export default function MovementPage() {
 
                   {/* เหตุผล + Quick reasons */}
                   <div>
-                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">เหตุผลการเบิกเงิน</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">เหตุผลการเบิกเงิน</label>
                     <div className="flex gap-2 mb-2 flex-wrap">
                       {QUICK_CASH_REASONS.map((q) => (
                         <button key={q} type="button" onClick={() => setCashReason(q)}
@@ -337,13 +356,32 @@ export default function MovementPage() {
                     <textarea rows={2} placeholder="หรือพิมพ์เหตุผลเอง..." value={cashReason} onChange={(e) => setCashReason(e.target.value)}
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
                   </div>
+
+                  {/* รูปภาพประกอบ */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">แนบรูปภาพประกอบ (ไม่บังคับ)</label>
+                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
+                      <input type="file" accept="image/*" onChange={handleCashImageUpload}
+                        className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
+                    </div>
+                    {cashImageFile && (
+                      <div className="mt-2 relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={cashImageFile} alt="preview" className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => setCashImageFile("")}
+                          className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold">
+                          ลบ
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
                   {/* Product */}
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">Select Product</label>
+                      <label className="text-xs font-semibold text-gray-500">Select Product</label>
                       {currentProduct && (
                         <span className="text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
                           สต็อกคงเหลือ: <span className="text-black font-black">{currentProduct.stock}</span> {currentProduct.unit}
@@ -365,7 +403,7 @@ export default function MovementPage() {
 
                   {/* Qty */}
                   <div>
-                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-2">Quantity & Unit</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-2">Quantity & Unit</label>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-full sm:w-auto">
                         {[1, 2, 3, 4, 5].map((num) => (
@@ -396,7 +434,7 @@ export default function MovementPage() {
 
                   {/* Note + Quick Notes */}
                   <div>
-                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Note (Optional)</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">Note (Optional)</label>
                     <div className="flex gap-2 mb-2">
                       {QUICK_NOTES.map((q) => (
                         <button key={q} type="button" onClick={() => setNote(q)}
@@ -411,7 +449,7 @@ export default function MovementPage() {
 
                   {/* Image Upload */}
                   <div>
-                    <label className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest block mb-1.5">แนบรูปภาพ (Optional)</label>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">แนบรูปภาพ (Optional)</label>
                     <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
                       <input type="file" accept="image/*" onChange={handleImageUpload}
                         className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
