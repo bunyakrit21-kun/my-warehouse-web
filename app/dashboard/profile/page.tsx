@@ -109,10 +109,10 @@ export default function ProfilePage() {
 
   const pwStrength = (() => {
     if (!newPassword) return null;
-    if (newPassword.length < 6) return { label: "อ่อน", color: "bg-red-400", w: "w-1/4" };
-    if (newPassword.length < 10) return { label: "ปานกลาง", color: "bg-yellow-400", w: "w-1/2" };
-    if (/[A-Z]/.test(newPassword) && /[0-9]/.test(newPassword)) return { label: "แข็งแกร่ง", color: "bg-green-500", w: "w-full" };
-    return { label: "ดี", color: "bg-blue-400", w: "w-3/4" };
+    if (newPassword.length < 6) return { label: t("pwWeak"), color: "bg-red-400", w: "w-1/4" };
+    if (newPassword.length < 10) return { label: t("pwMedium"), color: "bg-yellow-400", w: "w-1/2" };
+    if (/[A-Z]/.test(newPassword) && /[0-9]/.test(newPassword)) return { label: t("pwStrong"), color: "bg-green-500", w: "w-full" };
+    return { label: t("pwGood"), color: "bg-blue-400", w: "w-3/4" };
   })();
 
   return (

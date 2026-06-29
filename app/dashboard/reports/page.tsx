@@ -94,7 +94,7 @@ export default function ReportsPage() {
   const handleExportMovements = () => {
     exportCSV(
       `diam_movements_${range}.csv`,
-      ["วันที่", "ปริมาณรับเข้า", "ปริมาณเบิกออก", "สุทธิ"],
+      [t("csvDate"), t("statVolumeIn"), t("statVolumeOut"), t("csvNet")],
       dailyTrend.map(d => [
         new Date(d.date).toLocaleDateString("th-TH"),
         d.volume_in,
@@ -107,7 +107,7 @@ export default function ReportsPage() {
   const handleExportProducts = () => {
     exportCSV(
       `diam_products_${range}.csv`,
-      ["ชื่อสินค้า", "รับเข้า (ครั้ง)", "เบิกออก (ครั้ง)", "รวมทำรายการ"],
+      [t("colProductName"), t("csvInCount"), t("csvOutCount"), t("csvTotalTxn")],
       topProducts.map(p => [p.name, p.total_in ?? 0, p.total_out ?? 0, p.total_movements])
     );
   };
@@ -115,16 +115,16 @@ export default function ReportsPage() {
   const handleExportAll = () => {
     exportCSV(
       `diam_report_${range}.csv`,
-      ["ประเภท", "รายการ", "ค่า"],
+      [t("csvType"), t("csvItem"), t("csvValue")],
       [
-        ["สรุป", "ความเคลื่อนไหวรวม", summary?.total_movements ?? 0],
-        ["สรุป", "ปริมาณรับเข้า", summary?.volume_in ?? 0],
-        ["สรุป", "ปริมาณเบิกออก", summary?.volume_out ?? 0],
-        ["สรุป", "สุทธิ", (summary?.volume_in ?? 0) - (summary?.volume_out ?? 0)],
-        ["เงิน", "จำนวนครั้งเบิกเงิน", cashSummary?.total_withdrawals ?? 0],
-        ["เงิน", "ยอดเบิกเงินรวม (บาท)", cashSummary?.total_amount ?? 0],
-        ...topProducts.map(p => ["สินค้า", p.name, p.total_movements]),
-        ...dailyTrend.map(d => ["รายวัน", new Date(d.date).toLocaleDateString("th-TH"), `+${d.volume_in}/-${d.volume_out}`]),
+        [t("csvCatSummary"), t("totalMovements"), summary?.total_movements ?? 0],
+        [t("csvCatSummary"), t("statVolumeIn"), summary?.volume_in ?? 0],
+        [t("csvCatSummary"), t("statVolumeOut"), summary?.volume_out ?? 0],
+        [t("csvCatSummary"), t("csvNet"), (summary?.volume_in ?? 0) - (summary?.volume_out ?? 0)],
+        [t("csvCatMoney"), t("csvCashTimes"), cashSummary?.total_withdrawals ?? 0],
+        [t("csvCatMoney"), t("csvCashTotal"), cashSummary?.total_amount ?? 0],
+        ...topProducts.map(p => [t("csvCatProduct"), p.name, p.total_movements]),
+        ...dailyTrend.map(d => [t("csvCatDaily"), new Date(d.date).toLocaleDateString("th-TH"), `+${d.volume_in}/-${d.volume_out}`]),
       ]
     );
   };
@@ -187,13 +187,13 @@ export default function ReportsPage() {
               </button>
               <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-gray-200 bg-white shadow-lg z-10 hidden group-hover:block">
                 <button onClick={handleExportMovements} className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-gray-50 rounded-t-xl">
-                  Trend รายวัน (.csv)
+                  {t("trendCSV")}
                 </button>
                 <button onClick={handleExportProducts} className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-gray-50">
-                  Top สินค้า (.csv)
+                  {t("topProductsCSV")}
                 </button>
                 <button onClick={handleExportAll} className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-gray-50 rounded-b-xl border-t border-gray-100">
-                  รายงานรวม (.csv)
+                  {t("fullReportCSV")}
                 </button>
               </div>
             </div>
@@ -207,10 +207,10 @@ export default function ReportsPage() {
             {/* Quick Stats */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
               {[
-                { label: "ความเคลื่อนไหวรวม", value: summary?.total_movements ?? 0, unit: "รายการ", sub: `รับเข้า ${summary?.total_in ?? 0} / เบิกออก ${summary?.total_out ?? 0}`, color: "text-gray-900" },
-                { label: "ปริมาณรับเข้า", value: `+${summary?.volume_in ?? 0}`, unit: "", sub: "หน่วยรวมทุกสินค้า", color: "text-green-600" },
-                { label: "ปริมาณเบิกออก", value: `-${summary?.volume_out ?? 0}`, unit: "", sub: "หน่วยรวมทุกสินค้า", color: "text-red-500" },
-                { label: "เบิกเงินสด", value: `${Number(cashSummary?.total_amount ?? 0).toLocaleString()}`, unit: "บาท", sub: `${cashSummary?.total_withdrawals ?? 0} ครั้ง`, color: "text-orange-500" },
+                { label: t("totalMovements"), value: summary?.total_movements ?? 0, unit: t("items"), sub: `${t("totalMovementsSub")} ${summary?.total_in ?? 0} / ${t("totalMovementsOut")} ${summary?.total_out ?? 0}`, color: "text-gray-900" },
+                { label: t("statVolumeIn"), value: `+${summary?.volume_in ?? 0}`, unit: "", sub: t("allUnits"), color: "text-green-600" },
+                { label: t("statVolumeOut"), value: `-${summary?.volume_out ?? 0}`, unit: "", sub: t("allUnits"), color: "text-red-500" },
+                { label: t("cashWithdrawStat"), value: `${Number(cashSummary?.total_amount ?? 0).toLocaleString()}`, unit: t("baht"), sub: `${cashSummary?.total_withdrawals ?? 0} ${t("cashTimes")}`, color: "text-orange-500" },
               ].map(stat => (
                 <div key={stat.label} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                   <p className="text-xs font-semibold text-gray-500">{stat.label}</p>
@@ -226,19 +226,19 @@ export default function ReportsPage() {
 
               {/* Top สินค้า */}
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-800 mb-0.5">Top สินค้าที่เคลื่อนไหวบ่อย</h3>
-                <p className="text-xs text-gray-400 mb-5">จัดอันดับตามจำนวนครั้งที่ทำรายการ</p>
+                <h3 className="text-sm font-bold text-gray-800 mb-0.5">{t("topProductsTitle")}</h3>
+                <p className="text-xs text-gray-400 mb-5">{t("topProductsDesc")}</p>
 
                 {topProducts.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8">ยังไม่มีข้อมูลในช่วงเวลานี้</p>
+                  <p className="text-sm text-gray-400 text-center py-8">{t("noDataPeriod")}</p>
                 ) : chartType === "table" ? (
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-100 text-gray-400 font-semibold">
-                        <th className="text-left pb-2">สินค้า</th>
-                        <th className="text-right pb-2 text-green-600">รับเข้า</th>
-                        <th className="text-right pb-2 text-red-500">เบิกออก</th>
-                        <th className="text-right pb-2">รวม</th>
+                        <th className="text-left pb-2">{t("colProductName")}</th>
+                        <th className="text-right pb-2 text-green-600">{t("colIn")}</th>
+                        <th className="text-right pb-2 text-red-500">{t("colOut")}</th>
+                        <th className="text-right pb-2">{t("colTotal")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -262,15 +262,15 @@ export default function ReportsPage() {
                         <div key={i}>
                           <div className="flex justify-between text-xs mb-1.5">
                             <span className="font-semibold text-gray-800 truncate max-w-[200px]">{p.name}</span>
-                            <span className="text-gray-400 shrink-0 ml-2">{p.total_movements} ครั้ง</span>
+                            <span className="text-gray-400 shrink-0 ml-2">{p.total_movements} {t("cashTimes")}</span>
                           </div>
                           <div className="flex h-3 rounded-full overflow-hidden bg-gray-100">
                             <div className="bg-green-500 transition-all duration-500" style={{ width: `${inPct}%` }} />
                             <div className="bg-red-400 transition-all duration-500" style={{ width: `${outPct}%` }} />
                           </div>
                           <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
-                            <span className="text-green-600 font-semibold">รับเข้า {inPct.toFixed(0)}%</span>
-                            <span className="text-red-500 font-semibold">เบิกออก {outPct.toFixed(0)}%</span>
+                            <span className="text-green-600 font-semibold">{t("colIn")} {inPct.toFixed(0)}%</span>
+                            <span className="text-red-500 font-semibold">{t("colOut")} {outPct.toFixed(0)}%</span>
                           </div>
                         </div>
                       );
@@ -282,7 +282,7 @@ export default function ReportsPage() {
                       <div key={i}>
                         <div className="flex justify-between text-xs mb-1.5">
                           <span className="font-semibold text-gray-800 truncate max-w-[200px]">{p.name}</span>
-                          <span className="text-gray-400 font-mono shrink-0 ml-2">{p.total_movements} ครั้ง</span>
+                          <span className="text-gray-400 font-mono shrink-0 ml-2">{p.total_movements} {t("cashTimes")}</span>
                         </div>
                         <div className="flex gap-1 h-2.5 rounded-full overflow-hidden bg-gray-100">
                           <div className="bg-green-500 h-full rounded-full transition-all duration-500"
@@ -291,8 +291,8 @@ export default function ReportsPage() {
                             style={{ width: `${(Number(p.total_out) / (Number(p.total_in) + Number(p.total_out) || 1)) * (Number(p.total_movements) / maxTopMovement) * 100}%` }} />
                         </div>
                         <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
-                          <span className="text-green-600 font-semibold">+{p.total_in ?? 0} รับเข้า</span>
-                          <span className="text-red-500 font-semibold">-{p.total_out ?? 0} เบิกออก</span>
+                          <span className="text-green-600 font-semibold">+{p.total_in ?? 0} {t("colIn")}</span>
+                          <span className="text-red-500 font-semibold">-{p.total_out ?? 0} {t("colOut")}</span>
                         </div>
                       </div>
                     ))}
@@ -300,26 +300,26 @@ export default function ReportsPage() {
                 )}
 
                 <div className="mt-4 flex items-center gap-4 text-xs text-gray-400 border-t border-gray-100 pt-3">
-                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />รับเข้า</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />เบิกออก</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{t("colIn")}</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />{t("colOut")}</span>
                 </div>
               </div>
 
-              {/* Trend รายวัน */}
+              {/* Daily Trend */}
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-800 mb-0.5">Trend รายวัน</h3>
-                <p className="text-xs text-gray-400 mb-5">ปริมาณรับเข้า vs เบิกออกแต่ละวัน</p>
+                <h3 className="text-sm font-bold text-gray-800 mb-0.5">{t("dailyTrendTitle")}</h3>
+                <p className="text-xs text-gray-400 mb-5">{t("dailyTrendDesc")}</p>
 
                 {dailyTrend.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8">ยังไม่มีข้อมูลในช่วงเวลานี้</p>
+                  <p className="text-sm text-gray-400 text-center py-8">{t("noDataPeriod")}</p>
                 ) : chartType === "table" ? (
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-100 text-gray-400 font-semibold">
-                        <th className="text-left pb-2">วันที่</th>
-                        <th className="text-right pb-2 text-green-600">รับเข้า</th>
-                        <th className="text-right pb-2 text-red-500">เบิกออก</th>
-                        <th className="text-right pb-2">สุทธิ</th>
+                        <th className="text-left pb-2">{t("csvDate")}</th>
+                        <th className="text-right pb-2 text-green-600">{t("colIn")}</th>
+                        <th className="text-right pb-2 text-red-500">{t("colOut")}</th>
+                        <th className="text-right pb-2">{t("csvNet")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -378,8 +378,8 @@ export default function ReportsPage() {
                 )}
 
                 <div className="mt-4 flex items-center gap-4 text-xs text-gray-400 border-t border-gray-100 pt-3">
-                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />รับเข้า</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />เบิกออก</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{t("colIn")}</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />{t("colOut")}</span>
                 </div>
               </div>
             </div>

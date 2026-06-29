@@ -58,7 +58,7 @@ export default function DashboardPage() {
     router.push("/login");
   };
 
-  if (!mounted) return <div className="p-8 text-center text-gray-400">กำลังเชื่อมต่อข้อมูล...</div>;
+  if (!mounted) return <div className="p-8 text-center text-gray-400">{t("loading")}</div>;
 
   const criticalItems = products.filter(p => p.stock <= p.minStock);
   const inStockPercentage = products.length === 0
@@ -222,7 +222,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t("stockStatusLabel")}</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className="text-4xl font-black text-gray-900">{products.length - criticalItems.length}</span>
-                  <span className="text-sm text-gray-400">/ {products.length} รายการ</span>
+                  <span className="text-sm text-gray-400">/ {products.length} {t("items")}</span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">{t("stockOkItems")}</p>
               </div>

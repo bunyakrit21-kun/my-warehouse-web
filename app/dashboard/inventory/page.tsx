@@ -48,7 +48,7 @@ export default function InventoryPage() {
   const [zone, setZone] = useState("");
   const [stock, setStock] = useState("");
   const [minStock, setMinStock] = useState("");
-  const [unit, setUnit] = useState("แพ็ค");
+  const [unit, setUnit] = useState("");
   const [imageFile, setImageFile] = useState("");
 
   const [formCreatorPin, setFormCreatorPin] = useState("");
@@ -87,7 +87,7 @@ export default function InventoryPage() {
     init();
   }, []);
 
-  if (!mounted) return <div className="p-8 text-center text-sm font-sans text-gray-400">กำลังเชื่อมต่อฐานข้อมูลเซิร์ฟเวอร์...</div>;
+  if (!mounted) return <div className="p-8 text-center text-sm font-sans text-gray-400">{t("loadingDb")}</div>;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -103,7 +103,7 @@ export default function InventoryPage() {
   const handleAddNewZone = () => {
     const trimmed = newZoneName.trim();
     if (!trimmed) return;
-    if (zonesList.includes(trimmed)) return alert("มีรายชื่อโซนนี้อยู่ในระบบแล้ว");
+    if (zonesList.includes(trimmed)) return alert(t("alertZoneDuplicate"));
     setZonesList([...zonesList, trimmed]);
     setZone(trimmed);
     setNewZoneName("");
@@ -113,7 +113,7 @@ export default function InventoryPage() {
   const handleAddNewCategory = () => {
     const trimmed = newCatName.trim();
     if (!trimmed) return;
-    if (categoriesList.includes(trimmed)) return alert("มีรายชื่อหมวดหมู่นี้อยู่ในระบบแล้ว");
+    if (categoriesList.includes(trimmed)) return alert(t("alertCatDuplicate"));
     setCategoriesList([...categoriesList, trimmed]);
     setCategory(trimmed);
     setNewCatName("");
@@ -133,7 +133,7 @@ export default function InventoryPage() {
   const lowStockItems = products.filter((p: Product) => p.stock > 0 && p.stock <= p.minStock).length;
 
   const openCreateModal = () => {
-    setEditingId(null); setName(""); setStock(""); setMinStock(""); setUnit("แพ็ค");
+    setEditingId(null); setName(""); setStock(""); setMinStock(""); setUnit(t("defaultUnit"));
     setZone(zonesList[0] || ""); setCategory(categoriesList[0] || "");
     setImageFile(""); setFormCreatorPin(""); setFormPinError(""); setIsFormModalOpen(true);
   };
@@ -156,7 +156,7 @@ export default function InventoryPage() {
       body: JSON.stringify({ pin: formCreatorPin }),
     });
     if (!verifyRes.ok) {
-      setFormPinError("รหัสพนักงานไม่ถูกต้อง ไม่มีสิทธิ์ทำรายการบันทึก");
+      setFormPinError(t("pinInvalid"));
       return;
     }
 
@@ -173,11 +173,11 @@ export default function InventoryPage() {
         }),
       });
       if (response.ok) {
-        alert("แก้ไขสินค้าสำเร็จ");
+        alert(t("alertEditSuccess"));
         setIsFormModalOpen(false);
         fetchProductsFromDatabase(storeId);
       } else {
-        alert("แก้ไขไม่สำเร็จ");
+        alert(t("alertEditFailed"));
       }
     } else {
       try {
@@ -195,11 +195,11 @@ export default function InventoryPage() {
           }),
         });
         if (response.ok) {
-          alert("📢 บันทึกสินค้าใหม่ลงสู่คลาวด์สำเร็จ!");
+          alert(t("alertSavedOk"));
           setIsFormModalOpen(false);
           fetchProductsFromDatabase(storeId);
         } else {
-          alert("เกิดข้อผิดพลาดจากฝั่งเซิร์ฟเวอร์ ไม่สามารถบันทึกได้");
+          alert(t("alertSaveServerError"));
         }
       } catch (err) {
         console.error("Insert product API Error:", err);
@@ -221,13 +221,13 @@ export default function InventoryPage() {
         try {
           const res = await fetch(`/api/products/${selectedProduct.id}`, { method: "DELETE" });
           if (res.ok) {
-            alert("ลบสินค้าสำเร็จ");
+            alert(t("alertDeleteSuccess"));
             fetchProductsFromDatabase(storeId);
           } else {
-            alert("ลบไม่สำเร็จ");
+            alert(t("alertDeleteFailed"));
           }
         } catch {
-          alert("เกิดข้อผิดพลาด");
+          alert(t("error"));
         }
       } else if (authMode === "EDIT" && selectedProduct) {
         setEditingId(selectedProduct.id);
@@ -243,7 +243,7 @@ export default function InventoryPage() {
         setIsFormModalOpen(true);
       }
     } else {
-      setAuthError("รหัสพนักงานไม่ถูกต้อง หรือไม่มีสิทธิ์สำหรับการดำเนินการนี้");
+      setAuthError(t("pinInvalidAuth"));
     }
   };
 
@@ -260,7 +260,7 @@ export default function InventoryPage() {
             </div>
             <div className="leading-tight">
               <p className="text-lg font-bold tracking-tight">DiaM Dashboard</p>
-              <p className="text-xs text-gray-400 font-medium">ระบบคลังสินค้าฐานข้อมูลกลาง (Cloud Connected)</p>
+              <p className="text-xs text-gray-400 font-medium">{t("inventoryTagline")}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -283,7 +283,7 @@ export default function InventoryPage() {
             <button key={zoneName} type="button" onClick={() => setFilterMode(zoneName)}
               className={`text-left rounded-2xl border bg-white p-4 shadow-sm transition-all ${filterMode === zoneName ? "border-black ring-2 ring-black/5" : "border-gray-200 hover:border-gray-400"}`}>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate">{zoneName}</p>
-              <p className="mt-0.5 text-xl font-black text-gray-900">{products.filter(p => p.zone === zoneName).length} ชิ้น</p>
+              <p className="mt-0.5 text-xl font-black text-gray-900">{products.filter(p => p.zone === zoneName).length} {t("pcs")}</p>
             </button>
           ))}
 
@@ -306,7 +306,7 @@ export default function InventoryPage() {
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
-            <input type="text" placeholder="พิมพ์คำค้นหาชื่อสินค้าหรือรหัสสินค้า..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-white border border-gray-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium outline-none focus:border-black focus:ring-2 focus:ring-gray-100 shadow-sm transition-all" />
+            <input type="text" placeholder={t("searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-white border border-gray-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium outline-none focus:border-black focus:ring-2 focus:ring-gray-100 shadow-sm transition-all" />
           </div>
           <button type="button" onClick={openCreateModal} className="rounded-2xl bg-black text-white px-6 font-bold text-sm hover:bg-gray-800 transition-all shadow-sm shrink-0 flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
@@ -360,7 +360,7 @@ export default function InventoryPage() {
                         <td className="px-5 py-4">
                           <div className="text-[10px] text-gray-400 font-bold tracking-wide">{p.id}</div>
                           <div className="font-bold text-gray-900 leading-tight text-sm">{p.name}</div>
-                          <div className="text-[10px] text-gray-400 font-medium mt-0.5">ลงบันทึกคลาวด์เมื่อ: {p.createdAt}</div>
+                          <div className="text-[10px] text-gray-400 font-medium mt-0.5">{t("uploadedAt")} {p.createdAt}</div>
                         </td>
                         <td className="px-5 py-4">
                           <div className="text-xs font-bold text-gray-800">{p.category}</div>
@@ -375,8 +375,8 @@ export default function InventoryPage() {
                         </td>
                         <td className="whitespace-nowrap px-5 py-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button onClick={() => openEditModal(p)} className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-black transition-all shadow-sm">แก้ไข</button>
-                            <button onClick={() => openDeleteModal(p)} className="rounded-lg border border-red-100 bg-red-50/80 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm">ลบข้อมูล</button>
+                            <button onClick={() => openEditModal(p)} className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-black transition-all shadow-sm">{t("edit")}</button>
+                            <button onClick={() => openDeleteModal(p)} className="rounded-lg border border-red-100 bg-red-50/80 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm">{t("del")}</button>
                           </div>
                         </td>
                       </tr>
@@ -417,8 +417,8 @@ export default function InventoryPage() {
                 </div>
                 {showAddZoneInput && (
                   <div className="flex gap-2 mb-2">
-                    <input type="text" placeholder="ระบุชื่อโซนใหม่" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} className="flex-1 rounded-xl border border-blue-300 bg-white py-1.5 px-3 text-xs outline-none font-sans" />
-                    <button type="button" onClick={handleAddNewZone} className="rounded-xl bg-blue-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-blue-700">ยืนยัน</button>
+                    <input type="text" placeholder={t("newZoneInputPH")} value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} className="flex-1 rounded-xl border border-blue-300 bg-white py-1.5 px-3 text-xs outline-none font-sans" />
+                    <button type="button" onClick={handleAddNewZone} className="rounded-xl bg-blue-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-blue-700">{t("confirm")}</button>
                   </div>
                 )}
                 {zonesList.length > 0 ? (
@@ -426,7 +426,7 @@ export default function InventoryPage() {
                     {zonesList.map((z) => <option key={z} value={z}>{z}</option>)}
                   </select>
                 ) : (
-                  <input type="text" placeholder="กด + เพิ่มโซนใหม่ก่อน" value={zone} onChange={(e) => setZone(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
+                  <input type="text" placeholder={t("noZonesInputPH")} value={zone} onChange={(e) => setZone(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
                 )}
               </div>
 
@@ -439,8 +439,8 @@ export default function InventoryPage() {
                 </div>
                 {showAddCatInput && (
                   <div className="flex gap-2 mb-2">
-                    <input type="text" placeholder="ระบุหมวดใหม่" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="flex-1 rounded-xl border border-blue-300 bg-white py-1.5 px-3 text-xs outline-none font-sans" />
-                    <button type="button" onClick={handleAddNewCategory} className="rounded-xl bg-blue-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-blue-700">ยืนยัน</button>
+                    <input type="text" placeholder={t("newCatInputPH")} value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="flex-1 rounded-xl border border-blue-300 bg-white py-1.5 px-3 text-xs outline-none font-sans" />
+                    <button type="button" onClick={handleAddNewCategory} className="rounded-xl bg-blue-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-blue-700">{t("confirm")}</button>
                   </div>
                 )}
                 {categoriesList.length > 0 ? (
@@ -448,7 +448,7 @@ export default function InventoryPage() {
                     {categoriesList.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 ) : (
-                  <input type="text" placeholder="กด + เพิ่มหมวดหมู่ใหม่ก่อน" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
+                  <input type="text" placeholder={t("noCatsInputPH")} value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
                 )}
               </div>
 
@@ -465,7 +465,7 @@ export default function InventoryPage() {
 
               <div>
                 <label className="text-xs font-bold text-gray-500 block mb-1">{t("minStockLabel")}</label>
-                <input type="number" min="0" placeholder="เกณฑ์แจ้งเตือนสต็อกขั้นต่ำเมื่อของขาด" value={minStock} onChange={(e) => setMinStock(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
+                <input type="number" min="0" placeholder={t("minStockPlaceholder")} value={minStock} onChange={(e) => setMinStock(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
               </div>
 
               <div>
@@ -476,7 +476,7 @@ export default function InventoryPage() {
                 {imageFile && (
                   <div className="mt-2 relative w-14 h-14 border border-gray-200 rounded-lg overflow-hidden bg-gray-100">
                     <img src={imageFile} alt="Preview" className="w-full h-full object-cover" />
-                    <button type="button" onClick={() => setImageFile("")} className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[9px] font-bold">ลบรูป</button>
+                    <button type="button" onClick={() => setImageFile("")} className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[9px] font-bold">{t("deletePhoto")}</button>
                   </div>
                 )}
               </div>
@@ -527,7 +527,7 @@ export default function InventoryPage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             <div className="overflow-hidden rounded-2xl bg-gray-50">
-              <img src={activeLightboxImg} alt="วัตถุดิบ" className="max-w-full max-h-[75vh] object-contain block mx-auto" />
+              <img src={activeLightboxImg} alt={t("photoLabel")} className="max-w-full max-h-[75vh] object-contain block mx-auto" />
             </div>
           </div>
         </div>

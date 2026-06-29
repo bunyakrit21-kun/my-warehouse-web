@@ -101,7 +101,7 @@ export default function StoresPage() {
     e.preventDefault();
     setMemberError("");
     if (!selectedStoreId) return;
-    if (!/^\d{4}$/.test(newPin)) return setMemberError("PIN ต้องเป็นตัวเลข 4 หลัก");
+    if (!/^\d{4}$/.test(newPin)) return setMemberError(t("alertPinRequired"));
     setAddingMember(true);
     const res = await fetch("/api/admin/members", {
       method: "POST",
@@ -116,14 +116,14 @@ export default function StoresPage() {
   };
 
   const handleDeleteMember = async (id: number, memberName: string) => {
-    if (!confirm(`ลบ "${memberName}" ออกจากทีมงาน?`)) return;
+    if (!confirm(t("confirmDeleteMember").replace("%s", memberName))) return;
     await fetch(`/api/admin/members/${id}`, { method: "DELETE" });
     if (selectedStoreId) fetchMembers(selectedStoreId);
   };
 
   const handleResetPin = async (id: number) => {
     if (!/^\d{4}$/.test(pinResetValue)) {
-      setPinResetMsg({ id, type: "err", text: "PIN ต้องเป็นตัวเลข 4 หลัก" });
+      setPinResetMsg({ id, type: "err", text: t("alertPinRequired") });
       return;
     }
     setSavingPin(true);
@@ -230,7 +230,7 @@ export default function StoresPage() {
                   <h2 className="text-sm font-bold text-gray-800">{t("teamSection")}</h2>
                   <p className="text-xs text-gray-400 mt-0.5">{currentStore.name}</p>
                 </div>
-                <span className="text-xs font-bold text-gray-400">{members.length} คน</span>
+                <span className="text-xs font-bold text-gray-400">{members.length} {t("person")}</span>
               </div>
 
               {/* Add member form */}
@@ -242,7 +242,7 @@ export default function StoresPage() {
                   <option value="staff">{t("roleStaff")}</option>
                   <option value="manager">{t("roleManager")}</option>
                 </select>
-                <input type="password" inputMode="numeric" maxLength={4} placeholder="PIN 4 หลัก"
+                <input type="password" inputMode="numeric" maxLength={4} placeholder={t("pin4")}
                   value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, ""))}
                   className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-center tracking-widest outline-none focus:border-black" required />
                 <button type="submit" disabled={addingMember}

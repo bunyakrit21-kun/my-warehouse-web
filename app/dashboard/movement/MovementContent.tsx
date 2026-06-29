@@ -122,7 +122,7 @@ export default function MovementPage() {
 
       const formatted: Movement[] = movementsRaw.map((m: RawMovement) => ({
         id: `MV-${String(m.id).padStart(4, "0")}`,
-        time: new Date(m.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.",
+        time: new Date(m.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
         type: m.type,
         itemName: m.product_name ?? m.itemName ?? "-",
         qty: m.qty,
@@ -134,7 +134,7 @@ export default function MovementPage() {
 
       const formattedCash: CashWithdrawal[] = (cashRaw ?? []).map((c: RawCashWithdrawal) => ({
         id: `CW-${String(c.id).padStart(4, "0")}`,
-        time: new Date(c.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.",
+        time: new Date(c.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
         amount: c.amount,
         reason: c.reason,
         user: c.employee_name ?? c.employee_pin ?? "-",
@@ -174,9 +174,9 @@ export default function MovementPage() {
           body: JSON.stringify({ pin: value }),
         });
         const data = await res.json();
-        setEmployeeName(res.ok ? data.name : "❌ ไม่พบรหัสพนักงานนี้");
+        setEmployeeName(res.ok ? data.name : t("pinNotFound"));
       } catch {
-        setEmployeeName("❌ เกิดข้อผิดพลาด");
+        setEmployeeName(t("pinError"));
       } finally {
         setVerifyingPin(false);
       }
@@ -187,12 +187,12 @@ export default function MovementPage() {
     e.preventDefault();
 
     if (pin.length !== 4 || employeeName.includes("❌") || !employeeName) {
-      return alert("กรุณากรอกรหัสพนักงานให้ถูกต้อง");
+      return alert(t("alertPinRequired"));
     }
 
     if (isCashMode) {
-      if (!cashAmount || Number(cashAmount) <= 0) return alert("กรุณาระบุจำนวนเงินที่ถูกต้อง");
-      if (!cashReason.trim()) return alert("กรุณาระบุเหตุผลการเบิกเงิน");
+      if (!cashAmount || Number(cashAmount) <= 0) return alert(t("alertAmountRequired"));
+      if (!cashReason.trim()) return alert(t("alertReasonRequired"));
 
       setSubmitting(true);
       try {
@@ -207,22 +207,22 @@ export default function MovementPage() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
+        if (!res.ok) throw new Error(data.error || t("error"));
 
-        alert("📢 บันทึกรายการเบิกเงินสำเร็จ!");
+        alert(t("alertCashSavedOk"));
         router.push("/dashboard");
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
-        alert(`❌ บันทึกไม่สำเร็จ: ${msg}`);
+        const msg = err instanceof Error ? err.message : t("error");
+        alert(`❌ ${t("saveFailed")}: ${msg}`);
       } finally {
         setSubmitting(false);
       }
       return;
     }
 
-    if (!selectedProductId || !currentProduct) return alert("กรุณาเลือกสินค้าวัตถุดิบในคลัง");
-    if (!qty || Number(qty) <= 0) return alert("กรุณาระบุจำนวนที่ถูกต้อง");
-    if (isOverStocked) return alert("ไม่สามารถทำรายการได้เนื่องจากยอดเบิกเกินจำนวนสินค้าคงเหลือ");
+    if (!selectedProductId || !currentProduct) return alert(t("alertSelectProduct"));
+    if (!qty || Number(qty) <= 0) return alert(t("alertQtyRequired"));
+    if (isOverStocked) return alert(t("alertOverStock"));
 
     setSubmitting(true);
     try {
@@ -240,20 +240,20 @@ export default function MovementPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
+      if (!res.ok) throw new Error(data.error || t("error"));
 
-      alert("📢 บันทึกรายการสำเร็จ!");
+      alert(t("alertSavedOk"));
       router.push("/dashboard");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
-      alert(`❌ บันทึกไม่สำเร็จ: ${msg}`);
+      const msg = err instanceof Error ? err.message : t("error");
+      alert(`❌ ${t("saveFailed")}: ${msg}`);
     } finally {
       setSubmitting(false);
     }
   };
 
   if (!mounted || loading) {
-    return <div className="p-8 text-center text-sm font-sans text-gray-400">กำลังดึงฐานข้อมูลคลัง...</div>;
+    return <div className="p-8 text-center text-sm font-sans text-gray-400">{t("loadingDb")}</div>;
   }
 
   const canSubmit = isCashMode
@@ -345,7 +345,7 @@ export default function MovementPage() {
                         </button>
                       ))}
                     </div>
-                    <textarea rows={2} placeholder="หรือพิมพ์เหตุผลเอง..." value={cashReason} onChange={(e) => setCashReason(e.target.value)}
+                    <textarea rows={2} placeholder={t("cashReasonPlaceholder")} value={cashReason} onChange={(e) => setCashReason(e.target.value)}
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
                   </div>
 
@@ -389,7 +389,7 @@ export default function MovementPage() {
                       </div>
                       <div className="flex flex-1 items-center gap-3">
                         <input
-                          type="number" min="1" placeholder="ระบุจำนวน" value={qty}
+                          type="number" min="1" placeholder={t("qtyPlaceholder")} value={qty}
                           onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))}
                           className={`w-full rounded-xl border py-2.5 px-4 text-sm text-center font-bold outline-none transition-all ${isOverStocked ? "border-red-500 bg-red-50 text-red-900" : "border-gray-200 bg-gray-50 focus:border-black focus:bg-white"}`}
                           required
@@ -401,7 +401,7 @@ export default function MovementPage() {
                     </div>
                     {isOverStocked && (
                       <p className="text-xs font-semibold text-red-600 mt-2">
-                        ⚠️ ยอดเบิกเกินสต็อกจริง (เบิกได้เพียง {currentProduct.stock} {currentProduct.unit})
+                        {t("overStockWarning")} {currentProduct.stock} {currentProduct.unit})
                       </p>
                     )}
                   </div>
@@ -417,7 +417,7 @@ export default function MovementPage() {
                         </button>
                       ))}
                     </div>
-                    <textarea rows={2} placeholder="หรือพิมพ์หมายเหตุเอง..." value={note} onChange={(e) => setNote(e.target.value)}
+                    <textarea rows={2} placeholder={t("notePlaceholder")} value={note} onChange={(e) => setNote(e.target.value)}
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
                   </div>
 
@@ -454,12 +454,12 @@ export default function MovementPage() {
           {/* Sidebar */}
           <div className="rounded-2xl border border-gray-200 bg-white p-6 flex flex-col justify-between shadow-sm">
             <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-3">คำแนะนำระบบเดินบัญชีคลัง</h3>
+              <h3 className="text-sm font-bold text-gray-900 mb-3">{t("sidebarTitle")}</h3>
               <ul className="space-y-3 text-xs text-gray-500 list-none leading-relaxed">
-                <li>• เลือกวัตถุดิบจากระบบเพื่อล็อกหน่วยนับโดยอัตโนมัติ</li>
-                <li>• ระบบจะป้องกันการเบิกของติดลบ (&apos;Data Integrity Guard&apos;)</li>
-                <li>• กดปุ่มโน้ตลัดเพื่อเลือกหมายเหตุที่ใช้บ่อย</li>
-                <li>• เบิกเงินต้องระบุจำนวนเงินและเหตุผลทุกครั้ง</li>
+                <li>• {t("sidebarTip1")}</li>
+                <li>• {t("sidebarTip2")}</li>
+                <li>• {t("sidebarTip3")}</li>
+                <li>• {t("sidebarTip4")}</li>
               </ul>
             </div>
             <div className="text-[10px] font-mono text-gray-400 mt-6 border-t border-gray-100 pt-3">SECURITY STATE: PIN REQUIRED</div>
@@ -542,7 +542,7 @@ export default function MovementPage() {
                         <td className="whitespace-nowrap px-6 py-4 font-mono text-xs text-gray-400">{c.id}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-xs text-gray-500">{c.time}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-center font-black text-base text-orange-600">
-                          -{Number(c.amount).toLocaleString()} บาท
+                          -{Number(c.amount).toLocaleString()} {t("baht")}
                         </td>
                         <td className="px-6 py-4 text-gray-700 text-xs max-w-xs truncate">{c.reason}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-gray-800 font-semibold text-xs">{c.user}</td>

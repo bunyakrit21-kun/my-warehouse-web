@@ -8,7 +8,7 @@ export default function MovementPage() {
     // ครอบ Suspense Boundary ไว้ตามคำสั่งของ Next.js เผื่อเวลาโหลดข้อมูลทางเทคนิค
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center font-sans text-sm text-gray-400">
-        กำลังโหลดโครงสร้างระบบบันทึกคลัง...
+        Loading...
       </div>
     }>
       <MovementContent />

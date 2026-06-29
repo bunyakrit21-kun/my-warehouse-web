@@ -254,6 +254,67 @@ const th = {
   roleAdmin: "แอดมิน",
   roleManager: "ผู้จัดการ",
   roleStaff: "พนักงาน",
+
+  // Password strength
+  pwWeak: "อ่อน",
+  pwMedium: "ปานกลาง",
+  pwStrong: "แข็งแกร่ง",
+  pwGood: "ดี",
+
+  // Movement alerts
+  alertPinRequired: "กรุณากรอกรหัสพนักงานให้ถูกต้อง",
+  alertAmountRequired: "กรุณาระบุจำนวนเงินที่ถูกต้อง",
+  alertReasonRequired: "กรุณาระบุเหตุผลการเบิกเงิน",
+  alertSelectProduct: "กรุณาเลือกสินค้าวัตถุดิบในคลัง",
+  alertQtyRequired: "กรุณาระบุจำนวนที่ถูกต้อง",
+  alertOverStock: "ไม่สามารถทำรายการได้เนื่องจากยอดเบิกเกินจำนวนสินค้าคงเหลือ",
+  alertSavedOk: "บันทึกรายการสำเร็จ!",
+  alertCashSavedOk: "บันทึกรายการเบิกเงินสำเร็จ!",
+  saveFailed: "บันทึกไม่สำเร็จ",
+  qtyPlaceholder: "ระบุจำนวน",
+
+  // Inventory alerts & placeholders
+  alertZoneDuplicate: "มีรายชื่อโซนนี้อยู่ในระบบแล้ว",
+  alertCatDuplicate: "มีรายชื่อหมวดหมู่นี้อยู่ในระบบแล้ว",
+  alertEditSuccess: "แก้ไขสินค้าสำเร็จ",
+  alertEditFailed: "แก้ไขไม่สำเร็จ",
+  alertSaveServerError: "เกิดข้อผิดพลาดจากฝั่งเซิร์ฟเวอร์ ไม่สามารถบันทึกได้",
+  alertDeleteSuccess: "ลบสินค้าสำเร็จ",
+  alertDeleteFailed: "ลบไม่สำเร็จ",
+  searchPlaceholder: "พิมพ์คำค้นหาชื่อสินค้าหรือรหัสสินค้า...",
+  newZoneInputPH: "ระบุชื่อโซนใหม่",
+  noZonesInputPH: "กด + เพิ่มโซนใหม่ก่อน",
+  newCatInputPH: "ระบุหมวดใหม่",
+  noCatsInputPH: "กด + เพิ่มหมวดหมู่ใหม่ก่อน",
+  defaultUnit: "แพ็ค",
+
+  // Units & counters
+  baht: "บาท",
+  pcs: "ชิ้น",
+  person: "คน",
+
+  // Reports stats
+  statVolumeIn: "ปริมาณรับเข้า",
+  statVolumeOut: "ปริมาณเบิกออก",
+
+  // Reports CSV headers
+  csvDate: "วันที่",
+  csvNet: "สุทธิ",
+  csvInCount: "รับเข้า (ครั้ง)",
+  csvOutCount: "เบิกออก (ครั้ง)",
+  csvTotalTxn: "รวมทำรายการ",
+  csvType: "ประเภท",
+  csvItem: "รายการ",
+  csvValue: "ค่า",
+  csvCatSummary: "สรุป",
+  csvCatMoney: "เงิน",
+  csvCatProduct: "สินค้า",
+  csvCatDaily: "รายวัน",
+  csvCashTimes: "จำนวนครั้งเบิกเงิน",
+  csvCashTotal: "ยอดเบิกเงินรวม (บาท)",
+
+  // Stores
+  confirmDeleteMember: "ลบ \"%s\" ออกจากทีมงาน?",
 } as const;
 
 export default th;
