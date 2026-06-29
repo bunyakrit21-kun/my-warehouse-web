@@ -56,6 +56,13 @@ export async function POST(request: Request) {
     const storeId = await resolveStoreId(user, bodyStoreId);
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
+    const [employee] = await sql`
+      SELECT id FROM users WHERE pin = ${pin} AND active = true AND store_id = ${storeId}
+    `;
+    if (!employee) {
+      return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
+    }
+
     const result = await sql.begin(async (sql) => {
       const products = await sql`
         SELECT stock FROM products

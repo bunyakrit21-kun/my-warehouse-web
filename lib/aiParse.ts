@@ -60,7 +60,7 @@ export async function parseThaiCommand(rawText: string): Promise<ParsedCommand> 
   } as const;
 
   const res = await client.responses.create({
-    model: "gpt-5",
+    model: "gpt-4o",
     instructions: [
       "คุณเป็นตัวแยกคำสั่งคลังสินค้า (ภาษาไทย).",
       "งาน: แปลงข้อความธรรมชาติให้เป็น JSON ตาม schema เท่านั้น.",

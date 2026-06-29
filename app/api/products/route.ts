@@ -34,17 +34,27 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, name, category, zone, stock, minStock, unit, image, storeId: bodyStoreId } = body;
+    const { name, category, zone, stock, minStock, unit, image, storeId: bodyStoreId } = body;
 
     const storeId = await resolveStoreId(user, bodyStoreId);
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
-    const result = await sql`
-      INSERT INTO products (id, name, category, zone, stock, min_stock, unit, image, store_id)
-      VALUES (${id}, ${name}, ${category}, ${zone}, ${stock}, ${minStock}, ${unit}, ${image ?? ""}, ${storeId})
-      RETURNING id, name
-    `;
-    return NextResponse.json({ success: true, product: result[0] });
+    const product = await sql.begin(async (sql) => {
+      const [last] = await sql`
+        SELECT id FROM products WHERE store_id = ${storeId} ORDER BY id DESC LIMIT 1 FOR UPDATE
+      `;
+      const maxIdNum = last ? parseInt(last.id.replace(/\D/g, ""), 10) || 0 : 0;
+      const nextId = `PROD${String(maxIdNum + 1).padStart(3, "0")}`;
+
+      const [inserted] = await sql`
+        INSERT INTO products (id, name, category, zone, stock, min_stock, unit, image, store_id)
+        VALUES (${nextId}, ${name}, ${category}, ${zone}, ${stock}, ${minStock}, ${unit}, ${image ?? ""}, ${storeId})
+        RETURNING id, name
+      `;
+      return inserted;
+    });
+
+    return NextResponse.json({ success: true, product });
   } catch {
     return NextResponse.json({ error: "บันทึกข้อมูลไม่สำเร็จ" }, { status: 500 });
   }

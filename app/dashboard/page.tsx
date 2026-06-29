@@ -32,7 +32,8 @@ export default function DashboardPage() {
         fetch("/api/auth/me").then(r => r.ok ? r.json() : null),
         fetch("/api/stores").then(r => r.ok ? r.json() : []),
       ]);
-      if (meData?.user) setUser(meData.user);
+      if (!meData?.user) { router.push("/login"); return; }
+      setUser(meData.user);
       setStores(storesData);
       const first: Store | null = storesData[0] ?? null;
       setCurrentStore(first);
@@ -60,9 +61,9 @@ export default function DashboardPage() {
   if (!mounted) return <div className="p-8 text-center text-gray-400">กำลังเชื่อมต่อข้อมูล...</div>;
 
   const criticalItems = products.filter(p => p.stock <= p.minStock);
-  const totalStockSum = products.reduce((a, p) => a + p.stock, 0);
-  const totalMinSum = products.reduce((a, p) => a + p.minStock, 0) || 1;
-  const inStockPercentage = Math.min(Math.round((totalStockSum / (totalStockSum + totalMinSum)) * 100), 100);
+  const inStockPercentage = products.length === 0
+    ? 100
+    : Math.round(((products.length - criticalItems.length) / products.length) * 100);
 
   const ROLE_LABEL: Record<string, string> = { owner: t("roleOwner"), admin: t("roleAdmin"), manager: t("roleManager"), staff: t("roleStaff") };
 

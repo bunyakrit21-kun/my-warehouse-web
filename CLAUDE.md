@@ -26,7 +26,7 @@ Two distinct login flows share the same `token` httpOnly cookie:
 | Admin (email + password) | `POST /api/auth/login` | `{ id, name, email, role }` | 7 days |
 | Staff (store name + 4-digit PIN) | `POST /api/auth/login-pin` | `{ id, name, role, storeId, storeName, type: "staff" }` | 12 hours |
 
-`middleware.ts` (root level) guards all `/dashboard/*` routes. Staff (`type === "staff"`) are restricted to `/dashboard/movement` only; admins can access everything.
+`proxy.ts` (root level, Next.js 16 uses this name instead of `middleware.ts`) guards all `/dashboard/*` routes. Staff (`type === "staff"`) are restricted to `/dashboard/movement` only; admins can access everything.
 
 All API routes that require auth call `getUser()` from `lib/auth.ts`, which reads the cookie and verifies with `jsonwebtoken` using `process.env.JWT_SECRET`.
 

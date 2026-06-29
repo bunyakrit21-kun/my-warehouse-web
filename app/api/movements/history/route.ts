@@ -13,9 +13,11 @@ export async function GET(request: Request) {
   try {
     const history = await sql`
       SELECT m.id, TO_CHAR(m.created_at, 'HH24:MI น.') as time, m.type,
-             p.name as "itemName", m.qty, m.note, m.employee_pin as "user"
+             p.name as "itemName", m.qty, m.note,
+             COALESCE(u.name, m.employee_pin) as "user"
       FROM movements m
       LEFT JOIN products p ON p.id = m.product_id
+      LEFT JOIN users u ON u.pin = m.employee_pin
       WHERE m.store_id = ${storeId}
       ORDER BY m.created_at DESC
       LIMIT 10

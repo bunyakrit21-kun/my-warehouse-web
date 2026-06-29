@@ -180,18 +180,11 @@ export default function InventoryPage() {
         alert("แก้ไขไม่สำเร็จ");
       }
     } else {
-      const maxIdNum = products.reduce((max, p) => {
-        const currentIdNum = parseInt(p.id.replace("PROD", ""), 10);
-        return currentIdNum > max ? currentIdNum : max;
-      }, 0);
-      const nextId = `PROD${String(maxIdNum + 1).padStart(3, "0")}`;
-
       try {
         const response = await fetch("/api/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            id: nextId,
             name: name.trim(),
             category, zone,
             stock: Number(stock) || 0,

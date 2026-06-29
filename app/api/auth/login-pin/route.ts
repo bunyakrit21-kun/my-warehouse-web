@@ -10,20 +10,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "กรุณากรอกข้อมูลให้ครบ" }, { status: 400 });
     }
 
-    // หา user ที่มี PIN นี้
+    // หา user ที่มี PIN นี้ และเป็นสมาชิกของร้านที่ระบุ
     const [user] = await sql`
-      SELECT u.id, u.name, u.role, u.pin
+      SELECT u.id, u.name, u.role, u.pin, u.store_id
       FROM users u
-      WHERE u.pin = ${pin} AND u.active = true
+      JOIN stores s ON s.id = u.store_id
+      WHERE u.pin = ${pin} AND u.active = true AND s.name = ${storeName}
     `;
 
     if (!user) {
-      return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
+      return NextResponse.json({ error: "PIN หรือชื่อร้านไม่ถูกต้อง" }, { status: 401 });
     }
 
-    // หา store ที่ตรงกับชื่อ
     const [store] = await sql`
-      SELECT id, name FROM stores WHERE name = ${storeName}
+      SELECT id, name FROM stores WHERE id = ${user.store_id}
     `;
 
     if (!store) {

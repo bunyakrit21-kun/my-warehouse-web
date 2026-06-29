@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
-import { getUser } from "@/lib/auth";
+import { getUser, resolveStoreId } from "@/lib/auth";
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -10,10 +10,13 @@ export async function GET(request: Request) {
   const storeId = searchParams.get("storeId");
   if (!storeId) return NextResponse.json({ error: "ต้องระบุร้าน" }, { status: 400 });
 
+  const resolvedStoreId = await resolveStoreId(user, storeId);
+  if (!resolvedStoreId) return NextResponse.json({ error: "ไม่มีสิทธิ์ดูข้อมูลร้านนี้" }, { status: 403 });
+
   try {
     const members = await sql`
       SELECT id, name, role FROM users
-      WHERE active = true AND store_id = ${storeId}
+      WHERE active = true AND store_id = ${resolvedStoreId}
       ORDER BY name ASC
     `;
     return NextResponse.json(members);

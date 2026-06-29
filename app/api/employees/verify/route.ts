@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
+import { getUser } from "@/lib/auth";
 
 export async function POST(request: Request) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { pin } = await request.json();
 

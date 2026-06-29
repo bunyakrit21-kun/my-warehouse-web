@@ -78,7 +78,6 @@ export default function MovementPage() {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [qty, setQty] = useState<number | "">(1);
   const [note, setNote] = useState("");
-  const [imageFile, setImageFile] = useState("");
 
   // Cash withdrawal fields
   const [cashAmount, setCashAmount] = useState<number | "">("");
@@ -88,7 +87,6 @@ export default function MovementPage() {
   const [employeeName, setEmployeeName] = useState("");
   const [verifyingPin, setVerifyingPin] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
-  const [cashImageFile, setCashImageFile] = useState("");
   const [storeId, setStoreId] = useState("");
 
   const fetchData = useCallback(async () => {
@@ -182,28 +180,6 @@ export default function MovementPage() {
       } finally {
         setVerifyingPin(false);
       }
-    }
-  };
-
-  const handleCashImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") setCashImageFile(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") setImageFile(reader.result);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -373,24 +349,6 @@ export default function MovementPage() {
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
                   </div>
 
-                  {/* รูปภาพประกอบ */}
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">{t("attachCashPhotoLabel")}</label>
-                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
-                      <input type="file" accept="image/*" onChange={handleCashImageUpload}
-                        className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
-                    </div>
-                    {cashImageFile && (
-                      <div className="mt-2 relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={cashImageFile} alt="preview" className="w-full h-full object-cover" />
-                        <button type="button" onClick={() => setCashImageFile("")}
-                          className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold">
-                          ลบ
-                        </button>
-                      </div>
-                    )}
-                  </div>
                 </>
               ) : (
                 <>
@@ -463,24 +421,6 @@ export default function MovementPage() {
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
                   </div>
 
-                  {/* Image Upload */}
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">{t("attachPhotoLabel")}</label>
-                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2">
-                      <input type="file" accept="image/*" onChange={handleImageUpload}
-                        className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer" />
-                    </div>
-                    {imageFile && (
-                      <div className="mt-2 relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={imageFile} alt="preview" className="w-full h-full object-cover" />
-                        <button type="button" onClick={() => setImageFile("")}
-                          className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold">
-                          ลบ
-                        </button>
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
 
