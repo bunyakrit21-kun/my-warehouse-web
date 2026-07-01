@@ -28,7 +28,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       WHERE id = ${id} AND store_id = ${storeId}
     `;
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("PUT /api/products/[id] error:", err);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
@@ -44,7 +45,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   try {
     await sql`DELETE FROM products WHERE id = ${id} AND store_id = ${storeId}`;
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("DELETE /api/products/[id] error:", err);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

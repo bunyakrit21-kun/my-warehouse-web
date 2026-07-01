@@ -25,7 +25,8 @@ export async function GET(request: Request) {
       ORDER BY created_at DESC
     `;
     return NextResponse.json(products);
-  } catch {
+  } catch (err) {
+    console.error("GET /api/products error:", err);
     return NextResponse.json({ error: "เกิดข้อผิดพลาดในการดึงข้อมูล" }, { status: 500 });
   }
 }
@@ -57,7 +58,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true, product });
-  } catch {
+  } catch (err) {
+    console.error("POST /api/products error:", err);
     return NextResponse.json({ error: "บันทึกข้อมูลไม่สำเร็จ" }, { status: 500 });
   }
 }

@@ -96,13 +96,24 @@ export default function InventoryPage() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") setImageFile(reader.result);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result !== "string") return;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1000;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setImageFile(canvas.toDataURL("image/jpeg", 0.7));
       };
-      reader.readAsDataURL(file);
-    }
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAddNewZone = () => {
