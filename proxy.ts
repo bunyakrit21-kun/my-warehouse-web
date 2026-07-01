@@ -35,8 +35,9 @@ export default async function proxy(request: NextRequest) {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
     const { payload } = await jwtVerify(token, secret);
 
-    if (payload.type === "staff" && !pathname.startsWith("/dashboard/movement")) {
-      return NextResponse.redirect(new URL("/dashboard/movement", request.url));
+    const staffOnly = "/dashboard/movement";
+    if (payload.type === "staff" && !pathname.startsWith(staffOnly)) {
+      return NextResponse.redirect(new URL(staffOnly, request.url));
     }
 
     if (pathname.startsWith("/dashboard/admin") && payload.role !== "admin") {

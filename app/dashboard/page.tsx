@@ -244,6 +244,20 @@ export default function DashboardPage() {
 
         </div>
 
+        {/* การ์ด ตารางงาน */}
+        <Link href={`/dashboard/schedule`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all mb-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">ตารางงาน</p>
+              <p className="mt-1 text-lg font-black text-gray-900">จัดกะพนักงาน</p>
+              <p className="text-xs text-gray-400 mt-0.5">วางแผนตารางงานรายสัปดาห์</p>
+            </div>
+            <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-400">
+              <span className="text-2xl">📅</span>
+            </div>
+          </div>
+        </Link>
+
         {/* notification bar */}
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3.5 flex items-center gap-3 shadow-sm">
           <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
