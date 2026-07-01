@@ -39,7 +39,6 @@ export default function ProfilePage() {
   const [showNewPw, setShowNewPw] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     fetch("/api/auth/me")
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -47,6 +46,7 @@ export default function ProfilePage() {
           setUser(data.user);
           setName(data.user.name ?? "");
         }
+        setMounted(true);
       });
   }, []);
 

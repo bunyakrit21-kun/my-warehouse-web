@@ -44,6 +44,7 @@ export default function StoresPage() {
   const [pinResetMsg, setPinResetMsg] = useState<{ id: number; type: "ok" | "err"; text: string } | null>(null);
   const [savingPin, setSavingPin] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchStores(); }, []);
   useEffect(() => { if (selectedStoreId) fetchMembers(selectedStoreId); }, [selectedStoreId]);
 

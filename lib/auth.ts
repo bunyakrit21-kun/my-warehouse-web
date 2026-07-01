@@ -2,17 +2,29 @@ import { cookies, headers } from "next/headers";
 import jwt from "jsonwebtoken";
 import sql from "@/lib/db";
 
-export async function getUser() {
+export interface JWTPayload {
+  id: number;
+  name: string;
+  role: string;
+  email?: string;
+  type?: string;
+  storeId?: number;
+  storeName?: string;
+  iat?: number;
+  exp?: number;
+}
+
+export async function getUser(): Promise<JWTPayload | null> {
   // รองรับ mobile app ที่ส่ง Authorization: Bearer <token>
   try {
     const headerStore = await headers();
     const auth = headerStore.get("authorization");
     if (auth?.startsWith("Bearer ")) {
       const token = auth.slice(7);
-      return jwt.verify(token, process.env.JWT_SECRET!) as any;
+      return jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
     }
   } catch {
-    // ถ้า header ไม่มีหรือ token ไม่ valid ให้ตกไปเช็ค cookie
+    // fallback to cookie
   }
 
   // fallback: เว็บใช้ httpOnly cookie ตามเดิม
@@ -20,19 +32,19 @@ export async function getUser() {
   const token = cookieStore.get("token")?.value;
   if (!token) return null;
   try {
-    return jwt.verify(token, process.env.JWT_SECRET!) as any;
+    return jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
   } catch {
     return null;
   }
 }
 
 export async function resolveStoreId(
-  user: { id?: number; type?: string; storeId?: number },
+  user: JWTPayload,
   requestedStoreId?: string | null
 ): Promise<string | null> {
   if (user.type === "staff") return user.storeId ? String(user.storeId) : null;
   if (!requestedStoreId) return null;
-  const userId = user.id ?? 0;
+  const userId = user.id;
   const rows = await sql`
     SELECT id FROM stores
     WHERE id = ${requestedStoreId}

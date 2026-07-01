@@ -109,6 +109,7 @@ export default function SchedulePage() {
       fetchData(sid, weekStart);
     }
     init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(new Date(weekStart), i));

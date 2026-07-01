@@ -73,7 +73,6 @@ export default function InventoryPage() {
   };
 
   useEffect(() => {
-    setMounted(true);
     async function init() {
       const meData = await fetch("/api/auth/me").then(r => r.ok ? r.json() : null);
       const user = meData?.user;
@@ -83,9 +82,10 @@ export default function InventoryPage() {
         : new URLSearchParams(window.location.search).get("storeId") ?? "";
       setStoreId(sid);
       await fetchProductsFromDatabase(sid);
+      setMounted(true);
     }
     init();
-  }, []);
+  }, [router]);
 
   if (!mounted) return <div className="p-8 text-center text-sm font-sans text-gray-400">{t("loadingDb")}</div>;
 

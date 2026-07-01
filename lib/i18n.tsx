@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 import th from "./locales/th";
 import en from "./locales/en";
 import zhTW from "./locales/zh-TW";
@@ -31,14 +31,12 @@ const Ctx = createContext<I18nContext>({
 });
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<LangCode>("th");
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
+  const [lang, setLangState] = useState<LangCode>(() => {
+    if (typeof window === "undefined") return "th";
     const saved = localStorage.getItem("diam_lang") as LangCode | null;
-    if (saved && locales[saved]) setLangState(saved);
-    setReady(true);
-  }, []);
+    return saved && locales[saved] ? saved : "th";
+  });
+  const [ready] = useState(() => typeof window !== "undefined");
 
   const setLang = (l: LangCode) => {
     setLangState(l);

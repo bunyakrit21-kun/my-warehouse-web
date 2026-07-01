@@ -26,7 +26,6 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    setMounted(true);
     async function init() {
       const [meData, storesData] = await Promise.all([
         fetch("/api/auth/me").then(r => r.ok ? r.json() : null),
@@ -38,9 +37,10 @@ export default function DashboardPage() {
       const first: Store | null = storesData[0] ?? null;
       setCurrentStore(first);
       if (first) await fetchProductsForStore(first.id);
+      setMounted(true);
     }
     init();
-  }, []);
+  }, [router]);
 
   // ปิด dropdown เมื่อคลิกข้างนอก
   useEffect(() => {
@@ -61,9 +61,6 @@ export default function DashboardPage() {
   if (!mounted) return <div className="p-8 text-center text-gray-400">{t("loading")}</div>;
 
   const criticalItems = products.filter(p => p.stock <= p.minStock);
-  const inStockPercentage = products.length === 0
-    ? 100
-    : Math.round(((products.length - criticalItems.length) / products.length) * 100);
 
   const ROLE_LABEL: Record<string, string> = { owner: t("roleOwner"), admin: t("roleAdmin"), manager: t("roleManager"), staff: t("roleStaff") };
 

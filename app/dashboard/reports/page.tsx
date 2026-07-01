@@ -76,16 +76,17 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (!storeId) return;
-    setLoading(true);
-    fetch(`/api/reports?range=${range}&storeId=${storeId}`)
-      .then(r => r.json())
-      .then(data => {
-        setSummary(data.summary);
-        setCashSummary(data.cashSummary);
-        setTopProducts(data.topProducts ?? []);
-        setDailyTrend(data.dailyTrend ?? []);
-      })
-      .finally(() => setLoading(false));
+    async function load() {
+      setLoading(true);
+      const r = await fetch(`/api/reports?range=${range}&storeId=${storeId}`);
+      const data = await r.json();
+      setSummary(data.summary);
+      setCashSummary(data.cashSummary);
+      setTopProducts(data.topProducts ?? []);
+      setDailyTrend(data.dailyTrend ?? []);
+      setLoading(false);
+    }
+    load();
   }, [range, storeId]);
 
   const maxTopMovement = Math.max(...topProducts.map(p => Number(p.total_movements)), 1);

@@ -149,11 +149,10 @@ export default function MovementPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   useEffect(() => {
-    setMounted(true);
-    fetchData();
+    fetchData().then(() => setMounted(true));
   }, [fetchData]);
 
   const currentProduct = products.find((p) => p.id === selectedProductId);
@@ -199,7 +198,7 @@ export default function MovementPage() {
     if (newPin.length === 4) verifyPin(newPin);
   };
 
-  const handlePinBoxKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handlePinBoxKeyDown = (_index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace") {
       e.preventDefault();
       if (pin.length === 0) return;

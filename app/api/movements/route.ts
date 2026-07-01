@@ -92,9 +92,10 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error) {
     const known = ["ไม่พบสินค้า", "สต็อกไม่เพียงพอสำหรับการเบิก"];
-    const msg = known.includes(error.message) ? error.message : "เกิดข้อผิดพลาด";
+    const message = error instanceof Error ? error.message : "";
+    const msg = known.includes(message) ? message : "เกิดข้อผิดพลาด";
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }
