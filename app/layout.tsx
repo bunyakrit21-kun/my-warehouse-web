@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Sans_TC, Sarabun } from "next/font/google";
 import { LangProvider } from "@/lib/i18n";
 import "./globals.css";
@@ -33,6 +33,22 @@ export const metadata: Metadata = {
   title: 'DiaM Universal Inventory - ระบบจัดการคลังสินค้าอัจฉริยะ',
   description: 'แพลตฟอร์มบริหารจัดการสต็อกและวัสดุอุปกรณ์สำหรับทุกประเภทธุรกิจ มั่นใจด้วยระบบ Data Integrity และ Multi-Device Terminal',
   keywords: 'DiaM, Inventory System, คลังสินค้า, จัดการสต็อก, ระบบจัดการคลังสินค้า, ก่อสร้าง, ร้านอาหาร, ค้าปลีก',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'DiaM',
+  },
+  icons: {
+    apple: '/icon-192.png',
+  },
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#000000',
 };
 
 export default function RootLayout({
