@@ -21,7 +21,8 @@ export async function GET(request: Request) {
       ORDER BY sort_order, start_time
     `,
     sql`
-      SELECT se.id, se.work_date, se.shift_id, se.user_id, u.name AS user_name
+      SELECT se.id, se.work_date, se.shift_id, se.user_id, u.name AS user_name,
+             se.checked_in_at
       FROM schedule_entries se
       JOIN users u ON u.id = se.user_id
       WHERE se.store_id = ${storeId}
@@ -56,6 +57,27 @@ export async function POST(request: Request) {
     RETURNING id
   `;
   return NextResponse.json({ success: true, id: entry?.id });
+}
+
+// PATCH — mark/unmark attendance
+export async function PATCH(request: Request) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const { id, storeId: bodyStoreId, checkedIn } = await request.json();
+    const storeId = await resolveStoreId(user, bodyStoreId);
+    if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
+
+    const checkedInAt: Date | null = checkedIn ? new Date() : null;
+    await sql`
+      UPDATE schedule_entries SET checked_in_at = ${checkedInAt}
+      WHERE id = ${id} AND store_id = ${storeId}
+    `;
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
+  }
 }
 
 // DELETE — remove assignment
