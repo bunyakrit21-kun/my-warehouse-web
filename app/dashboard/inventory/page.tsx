@@ -159,7 +159,7 @@ export default function InventoryPage() {
     const verifyRes = await fetch("/api/employees/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: formCreatorPin.join("") }),
+      body: JSON.stringify({ pin: formCreatorPin.join(""), storeId }),
     });
     if (!verifyRes.ok) {
       setFormPinError(t("pinInvalid"));
@@ -222,7 +222,7 @@ export default function InventoryPage() {
     const verifyRes = await fetch("/api/employees/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: authPin.join("") }),
+      body: JSON.stringify({ pin: authPin.join(""), storeId }),
     });
 
     if (verifyRes.ok) {
