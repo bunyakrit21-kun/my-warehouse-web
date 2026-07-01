@@ -36,6 +36,7 @@ const zhTW: Record<LocaleKeys, string> = {
   login: "登入",
   loggingIn: "驗證中...",
   noAccount: "還沒有帳號？",
+  rememberDevice: "記住這台裝置（下次免登入）",
   signup: "立即註冊",
 
   landingBadge: "雲端原生庫存管理",

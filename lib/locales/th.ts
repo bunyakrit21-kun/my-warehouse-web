@@ -37,6 +37,7 @@ const th = {
   login: "เข้าสู่ระบบ",
   loggingIn: "กำลังตรวจสอบ...",
   noAccount: "ยังไม่มีบัญชี?",
+  rememberDevice: "จำเครื่องนี้ไว้ (ไม่ต้องเข้าสู่ระบบซ้ำ)",
   signup: "สมัครสมาชิก",
 
   // Landing

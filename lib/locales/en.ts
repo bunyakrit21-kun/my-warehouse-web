@@ -36,6 +36,7 @@ const en: Record<LocaleKeys, string> = {
   login: "Log In",
   loggingIn: "Verifying...",
   noAccount: "Don't have an account?",
+  rememberDevice: "Remember this device (skip login next time)",
   signup: "Sign Up",
 
   landingBadge: "Cloud Native Inventory",

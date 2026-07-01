@@ -36,6 +36,7 @@ const vi: Record<LocaleKeys, string> = {
   login: "Đăng nhập",
   loggingIn: "Đang xác minh...",
   noAccount: "Chưa có tài khoản?",
+  rememberDevice: "Ghi nhớ thiết bị này (không cần đăng nhập lại)",
   signup: "Đăng ký",
 
   landingBadge: "Quản lý kho trên nền tảng đám mây",

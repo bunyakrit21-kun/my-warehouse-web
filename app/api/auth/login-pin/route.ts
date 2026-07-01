@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 
 export async function POST(request: Request) {
   try {
-    const { storeName, pin } = await request.json();
+    const { storeName, pin, remember } = await request.json();
 
     if (!storeName || !pin) {
       return NextResponse.json({ error: "กรุณากรอกข้อมูลให้ครบ" }, { status: 400 });
@@ -30,10 +30,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "ไม่พบร้านนี้ในระบบ" }, { status: 404 });
     }
 
+    const maxAgeSeconds = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 12;
+
     const token = jwt.sign(
       { id: user.id, name: user.name, role: user.role, storeId: store.id, storeName: store.name, type: "staff" },
       process.env.JWT_SECRET!,
-      { expiresIn: "12h" }
+      { expiresIn: maxAgeSeconds }
     );
 
     const response = NextResponse.json({
@@ -41,11 +43,12 @@ export async function POST(request: Request) {
       user: { name: user.name, role: user.role, storeName: store.name },
     });
 
+    // จำเครื่อง 30 วัน, ปกติ 12 ชั่วโมง
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 12,
+      maxAge: maxAgeSeconds,
       path: "/",
     });
 
