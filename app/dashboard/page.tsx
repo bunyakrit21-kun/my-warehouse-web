@@ -8,6 +8,13 @@ import { useT, LangSwitcher } from "@/lib/i18n";
 interface Product { id: string; name: string; stock: number; minStock: number; unit: string; }
 interface Store { id: number; name: string; business_type: string; phone: string; my_role: string; }
 interface User { id: number; name: string; email: string; role: string; }
+interface Shift { id: number; name: string; start_time: string; end_time: string | null; color: string; }
+interface ScheduleEntry { id: number; work_date: string; shift_id: number; user_id: number; user_name: string; }
+
+const SHIFT_DOT_COLOR: Record<string, string> = {
+  blue: "bg-blue-500", green: "bg-green-500", orange: "bg-orange-500", purple: "bg-purple-500", red: "bg-red-500",
+};
+const MONTH_TH_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -18,11 +25,24 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
+  const [todayEntries, setTodayEntries] = useState<ScheduleEntry[]>([]);
+  const [todayDateStr, setTodayDateStr] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchProductsForStore = async (sid: number) => {
     const data = await fetch(`/api/products?storeId=${sid}`).then(r => r.ok ? r.json() : []);
     setProducts(data);
+  };
+
+  const fetchTodayScheduleForStore = async (sid: number) => {
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setTodayDateStr(todayStr);
+    const data = await fetch(`/api/schedule?storeId=${sid}&weekStart=${todayStr}&days=1`).then(r => r.ok ? r.json() : null);
+    if (!data) return;
+    setTodayShifts(data.shifts ?? []);
+    setTodayEntries((data.entries ?? []).filter((e: ScheduleEntry) => e.work_date.slice(0, 10) === todayStr));
   };
 
   useEffect(() => {
@@ -36,7 +56,7 @@ export default function DashboardPage() {
       setStores(storesData);
       const first: Store | null = storesData[0] ?? null;
       setCurrentStore(first);
-      if (first) await fetchProductsForStore(first.id);
+      if (first) await Promise.all([fetchProductsForStore(first.id), fetchTodayScheduleForStore(first.id)]);
       setMounted(true);
     }
     init();
@@ -63,6 +83,69 @@ export default function DashboardPage() {
   const criticalItems = products.filter(p => p.stock <= p.minStock);
 
   const ROLE_LABEL: Record<string, string> = { owner: t("roleOwner"), admin: t("roleAdmin"), manager: t("roleManager"), staff: t("roleStaff") };
+
+  const todayShiftChips = todayShifts.map(shift => ({
+    shift,
+    assigned: todayEntries.filter(e => e.shift_id === shift.id),
+  }));
+  const [todayYear, todayMonth, todayDay] = todayDateStr ? todayDateStr.split("-").map(Number) : [0, 0, 0];
+  const todayThaiLabel = todayDateStr ? `${todayDay} ${MONTH_TH_SHORT[todayMonth - 1]}` : "";
+  const todayMonthEn = todayDateStr
+    ? new Date(todayYear, todayMonth - 1, todayDay).toLocaleDateString("en-US", { month: "short" }).toUpperCase()
+    : "";
+
+  const quickActions = [
+    {
+      key: "in",
+      label: t("quickStockIn"),
+      href: `/dashboard/movement?type=MOVE_IN${currentStore ? `&storeId=${currentStore.id}` : ""}`,
+      box: "bg-green-50 border-green-100",
+      icon: (
+        <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v10m0 0l-3.5-3.5M12 14l3.5-3.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 16v2a1 1 0 001 1h12a1 1 0 001-1v-2" />
+        </svg>
+      ),
+    },
+    {
+      key: "out",
+      label: t("quickStockOut"),
+      href: `/dashboard/movement?type=MOVE_OUT${currentStore ? `&storeId=${currentStore.id}` : ""}`,
+      box: "bg-red-50 border-red-100",
+      icon: (
+        <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V10m0 0l-3.5 3.5M12 10l3.5 3.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 6V4a1 1 0 011-1h12a1 1 0 011 1v2" />
+        </svg>
+      ),
+    },
+    {
+      key: "cash",
+      label: t("quickCashOut"),
+      href: `/dashboard/movement?type=CASH_OUT${currentStore ? `&storeId=${currentStore.id}` : ""}`,
+      box: "bg-orange-50 border-orange-100",
+      icon: (
+        <svg className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <circle cx="12" cy="12" r="2.5" />
+        </svg>
+      ),
+    },
+    {
+      key: "fresh",
+      label: t("quickFreshCheck"),
+      href: `/dashboard/fresh-check${currentStore ? `?storeId=${currentStore.id}` : ""}`,
+      box: "bg-teal-50 border-teal-100",
+      icon: <span className="text-xl">🥬</span>,
+    },
+    {
+      key: "suggest",
+      label: t("quickSuggestOrder"),
+      href: `/dashboard/fresh-summary${currentStore ? `?storeId=${currentStore.id}` : ""}`,
+      box: "bg-amber-50 border-amber-100",
+      icon: <span className="text-xl">📊</span>,
+    },
+  ];
 
   return (
     <main className="min-h-screen bg-gray-50 text-black font-sans antialiased pb-12">
@@ -121,7 +204,7 @@ export default function DashboardPage() {
                     {stores.map(store => (
                       <button
                         key={store.id}
-                        onClick={() => { setCurrentStore(store); setDropdownOpen(false); fetchProductsForStore(store.id); }}
+                        onClick={() => { setCurrentStore(store); setDropdownOpen(false); fetchProductsForStore(store.id); fetchTodayScheduleForStore(store.id); }}
                         className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-xl mb-1 transition-all ${currentStore?.id === store.id ? "bg-black text-white" : "hover:bg-gray-50"}`}
                       >
                         <div>
@@ -202,16 +285,21 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* การ์ด 2: รายการเคลื่อนไหว */}
-          <Link href={`/dashboard/movement${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t("stockInOutLabel")}</p>
-            <div className="mt-4 flex items-baseline gap-4">
-              <span className="text-3xl font-black text-green-600">{t("stockInto")} <span className="text-xs font-bold text-gray-400 block uppercase mt-0.5">{t("stockIntoSub")}</span></span>
+          {/* การ์ด 2: ทางลัดรับเข้า/เบิกออก/เบิกเงิน/เช็คของสด/แนะนำสั่ง */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">{t("stockInOutLabel")}</p>
+            <div className="grid grid-cols-3 gap-3">
+              {quickActions.map(action => (
+                <Link key={action.key} href={action.href}
+                  className="flex flex-col items-center gap-2 rounded-xl py-2 hover:bg-gray-50 transition-all">
+                  <div className={`w-12 h-12 rounded-2xl border grid place-items-center ${action.box}`}>
+                    {action.icon}
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-600 text-center leading-tight">{action.label}</span>
+                </Link>
+              ))}
             </div>
-            <div className="mt-7 pt-4 border-t border-gray-100 text-xs font-semibold text-gray-500">
-              {t("recordInOut")}
-            </div>
-          </Link>
+          </div>
 {/* การ์ด 3: สถานะสินค้า */}
           <Link href={`/dashboard/reports${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
             <div className="flex items-start justify-between">
@@ -243,14 +331,46 @@ export default function DashboardPage() {
 
         {/* การ์ด ตารางงาน */}
         <Link href={`/dashboard/schedule${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all mb-5">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="shrink-0">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">ตารางงาน</p>
               <p className="mt-1 text-lg font-black text-gray-900">จัดกะพนักงาน</p>
               <p className="text-xs text-gray-400 mt-0.5">วางแผนตารางงานรายสัปดาห์</p>
             </div>
-            <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-400">
-              <span className="text-2xl">📅</span>
+
+            {todayShiftChips.length > 0 && (
+              <div className="flex-1 min-w-[200px]">
+                <p className="text-xs font-semibold text-gray-400 mb-2">วันนี้ทำงาน · {todayThaiLabel}</p>
+                <div className="flex flex-wrap gap-2">
+                  {todayShiftChips.flatMap(({ shift, assigned }) =>
+                    assigned.length > 0
+                      ? assigned.map(e => (
+                          <div key={`e-${e.id}`} className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-full pl-1.5 pr-3 py-1.5">
+                            <span className={`w-6 h-6 shrink-0 rounded-full grid place-items-center text-white text-[10px] font-bold ${SHIFT_DOT_COLOR[shift.color] ?? "bg-gray-400"}`}>
+                              {e.user_name?.[0] ?? "?"}
+                            </span>
+                            <span className="text-xs font-bold text-gray-800">{e.user_name}</span>
+                            <span className="text-[11px] text-gray-400">
+                              {shift.start_time}{shift.end_time ? `–${shift.end_time}` : ""}
+                            </span>
+                          </div>
+                        ))
+                      : [
+                          <div key={`u-${shift.id}`} className="flex items-center gap-1.5 bg-red-50 border border-red-100 text-red-600 rounded-full px-3 py-1.5">
+                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <rect x="4" y="4" width="16" height="16" rx="3" />
+                            </svg>
+                            <span className="text-xs font-bold">ยังไม่มีคนกะ{shift.name}</span>
+                          </div>,
+                        ]
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl text-center shrink-0">
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider leading-none">{todayMonthEn}</p>
+              <p className="text-lg font-black text-gray-900 leading-tight mt-0.5">{todayDay || ""}</p>
             </div>
           </div>
         </Link>

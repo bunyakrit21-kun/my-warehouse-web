@@ -8,6 +8,7 @@ interface Shift {
   id: number;
   name: string;
   start_time: string;
+  end_time: string | null;
   color: string;
   sort_order: number;
 }
@@ -84,6 +85,7 @@ function ScheduleContent() {
   const [shiftModal, setShiftModal] = useState(false);
   const [newShiftName, setNewShiftName] = useState("");
   const [newShiftTime, setNewShiftTime] = useState("08:00");
+  const [newShiftEndTime, setNewShiftEndTime] = useState("16:00");
   const [newShiftColor, setNewShiftColor] = useState("blue");
 
   const fetchData = useCallback(async (sid: string, ws: string, days = 7) => {
@@ -180,13 +182,14 @@ function ScheduleContent() {
     const res = await fetch("/api/shifts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storeId, name: newShiftName, startTime: newShiftTime, color: newShiftColor }),
+      body: JSON.stringify({ storeId, name: newShiftName, startTime: newShiftTime, endTime: newShiftEndTime || null, color: newShiftColor }),
     });
     const shift = await res.json();
     setShifts(prev => [...prev, shift].sort((a, b) => a.sort_order - b.sort_order || a.start_time.localeCompare(b.start_time)));
     setShiftModal(false);
     setNewShiftName("");
     setNewShiftTime("08:00");
+    setNewShiftEndTime("16:00");
     setNewShiftColor("blue");
   }
 
@@ -614,10 +617,17 @@ function ScheduleContent() {
                   placeholder="เช่น กะเช้า, กะบ่าย, กะดึก"
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all" />
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1.5">เวลาเริ่ม</label>
-                <input type="time" value={newShiftTime} onChange={e => setNewShiftTime(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1.5">เวลาเริ่ม</label>
+                  <input type="time" value={newShiftTime} onChange={e => setNewShiftTime(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1.5">เวลาเลิก</label>
+                  <input type="time" value={newShiftEndTime} onChange={e => setNewShiftEndTime(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all" />
+                </div>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-2">สี</label>

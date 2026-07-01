@@ -96,7 +96,7 @@ export default function MovementPage() {
     const paramProductId = searchParams.get("productId");
     const paramType = searchParams.get("type");
     const paramStoreId = searchParams.get("storeId");
-    if (paramType === "MOVE_IN" || paramType === "MOVE_OUT") setType(paramType);
+    if (paramType === "MOVE_IN" || paramType === "MOVE_OUT" || paramType === "CASH_OUT") setType(paramType);
 
     try {
       const meRes = await fetch("/api/auth/me", { cache: "no-store" });

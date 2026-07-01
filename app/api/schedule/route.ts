@@ -17,7 +17,8 @@ export async function GET(request: Request) {
 
   const [shifts, entries, employees] = await Promise.all([
     sql`
-      SELECT id, name, TO_CHAR(start_time,'HH24:MI') AS start_time, color, sort_order
+      SELECT id, name, TO_CHAR(start_time,'HH24:MI') AS start_time,
+             TO_CHAR(end_time,'HH24:MI') AS end_time, color, sort_order
       FROM shifts WHERE store_id = ${storeId}
       ORDER BY sort_order, start_time
     `,
