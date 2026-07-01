@@ -429,17 +429,26 @@ export default function MovementPage() {
                                 key={p.id}
                                 type="button"
                                 onClick={() => { setSelectedProductId(p.id); setQty(1); }}
-                                className={`text-left rounded-xl border px-3 py-2 transition-all ${
+                                className={`flex items-center gap-2 text-left rounded-xl border px-3 py-2 transition-all ${
                                   isSelected
                                     ? "border-gray-900 bg-gray-900 text-white"
                                     : "border-gray-200 bg-white hover:border-gray-400"
                                 }`}
                               >
-                                <p className={`text-xs font-semibold leading-tight truncate ${isSelected ? "text-white" : "text-gray-800"}`}>{p.name}</p>
-                                <p className={`text-[11px] mt-0.5 ${isSelected ? "text-gray-300" : lowStock ? "text-red-500 font-semibold" : "text-gray-400"}`}>
-                                  {p.stock} {p.unit}
-                                  {p.zone ? <span className={`ml-1.5 ${isSelected ? "text-gray-400" : "text-gray-300"}`}>· {p.zone}</span> : null}
-                                </p>
+                                <div className={`w-9 h-9 shrink-0 rounded-lg overflow-hidden grid place-items-center ${isSelected ? "bg-white/10" : "bg-gray-50"}`}>
+                                  {p.image ? (
+                                    <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-sm">📦</span>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className={`text-xs font-semibold leading-tight truncate ${isSelected ? "text-white" : "text-gray-800"}`}>{p.name}</p>
+                                  <p className={`text-[11px] mt-0.5 ${isSelected ? "text-gray-300" : lowStock ? "text-red-500 font-semibold" : "text-gray-400"}`}>
+                                    {p.stock} {p.unit}
+                                    {p.zone ? <span className={`ml-1.5 ${isSelected ? "text-gray-400" : "text-gray-300"}`}>· {p.zone}</span> : null}
+                                  </p>
+                                </div>
                               </button>
                             );
                           })}
