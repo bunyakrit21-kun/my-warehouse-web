@@ -314,6 +314,14 @@ export default function MovementPage() {
           </div>
           <div className="flex items-center gap-3">
             <LangSwitcher />
+            {isStaff && (
+              <Link
+                href={`/dashboard/fresh-check${storeId ? `?storeId=${storeId}` : ""}`}
+                className="flex items-center gap-1.5 rounded-2xl bg-orange-50 border border-orange-200 text-orange-600 px-4 py-2 text-sm font-semibold hover:bg-orange-100 transition-all"
+              >
+                🥬 เช็คผักสด
+              </Link>
+            )}
             {!isStaff && (
               <Link href="/dashboard" className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold hover:border-black transition-all">
                 {t("backToHome")}

@@ -42,8 +42,9 @@ export default async function proxy(request: NextRequest) {
           return NextResponse.redirect(new URL("/dashboard/movement", request.url));
         }
       } else {
-        // พนักงานทั่วไป → movement เท่านั้น
-        if (!pathname.startsWith("/dashboard/movement")) {
+        // พนักงานทั่วไป → movement + fresh-check เท่านั้น
+        const staffAllowed = ["/dashboard/movement", "/dashboard/fresh-check"];
+        if (!staffAllowed.some(p => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL("/dashboard/movement", request.url));
         }
       }

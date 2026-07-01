@@ -1,51 +1,39 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useT, LangSwitcher } from "@/lib/i18n";
+import PinBoxes from "@/components/PinBoxes";
 
 interface FreshItem {
   id: string;
   name: string;
   unit: string;
   image: string;
-  parLevel: number | null;
 }
 
-interface DailyCheck {
+interface TodayCheck {
   productId: string;
   remainingQty: number;
-  wasteQty: number;
   checkedByName: string | null;
-  createdAt: string;
-}
-
-interface RowState {
-  remaining: string;
-  waste: string;
-  saved: boolean;
-  saving: boolean;
-  error: string;
 }
 
 function FreshCheckContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { t } = useT();
 
+  const [storeId, setStoreId] = useState<string>("");
   const [items, setItems] = useState<FreshItem[]>([]);
-  const [todayChecks, setTodayChecks] = useState<Record<string, DailyCheck>>({});
-  const [rows, setRows] = useState<Record<string, RowState>>({});
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [checkedToday, setCheckedToday] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [storeId, setStoreId] = useState<string | null>(null);
 
   // PIN modal
-  const [pinModal, setPinModal] = useState<{ productId: string } | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
-  const pinRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const [pinError, setPinError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -54,8 +42,13 @@ function FreshCheckContent() {
         const r = await fetch("/api/stores");
         if (r.ok) {
           const stores = await r.json();
-          if (stores.length > 0) sid = String(stores[0].id);
+          if (stores[0]?.id) sid = String(stores[0].id);
         }
+      }
+      // staff JWT มี storeId ใน /api/auth/me
+      if (!sid) {
+        const me = await fetch("/api/auth/me").then(r => r.ok ? r.json() : null);
+        if (me?.user?.storeId) sid = String(me.user.storeId);
       }
       if (!sid) { setLoading(false); setMounted(true); return; }
       setStoreId(sid);
@@ -66,231 +59,236 @@ function FreshCheckContent() {
       ]);
 
       const itemsData: FreshItem[] = itemsRes.ok ? await itemsRes.json() : [];
-      const checksData: DailyCheck[] = checksRes.ok ? await checksRes.json() : [];
+      const checksData: TodayCheck[] = checksRes.ok ? await checksRes.json() : [];
 
-      const checkMap: Record<string, DailyCheck> = {};
-      for (const c of checksData) checkMap[String(c.productId)] = c;
-
-      const initialRows: Record<string, RowState> = {};
-      for (const item of itemsData) {
-        const existing = checkMap[String(item.id)];
-        initialRows[item.id] = {
-          remaining: existing ? String(existing.remainingQty) : "",
-          waste: existing ? String(existing.wasteQty ?? 0) : "",
-          saved: !!existing,
-          saving: false,
-          error: "",
-        };
+      // pre-fill ค่าที่เคยเช็คไว้วันนี้
+      const initialValues: Record<string, string> = {};
+      const doneSet = new Set<string>();
+      for (const c of checksData) {
+        initialValues[String(c.productId)] = String(c.remainingQty);
+        doneSet.add(String(c.productId));
       }
 
       setItems(itemsData);
-      setTodayChecks(checkMap);
-      setRows(initialRows);
+      setValues(initialValues);
+      setCheckedToday(doneSet);
       setLoading(false);
       setMounted(true);
     }
     init();
   }, [searchParams]);
 
-  const openPinModal = (productId: string) => {
-    setPinModal({ productId });
+  const filledCount = items.filter(it => values[it.id] !== undefined && values[it.id] !== "").length;
+
+  const openPin = () => {
+    if (filledCount === 0) return;
     setPin(["", "", "", ""]);
     setPinError("");
-    setTimeout(() => pinRefs[0].current?.focus(), 100);
+    setSavedOk(false);
+    setPinOpen(true);
   };
 
-  const handlePinKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !pin[i] && i > 0) pinRefs[i - 1].current?.focus();
-  };
-  const handlePinInput = (i: number, v: string) => {
-    const digit = v.replace(/\D/g, "").slice(-1);
-    const next = [...pin];
-    next[i] = digit;
-    setPin(next);
-    if (digit && i < 3) pinRefs[i + 1].current?.focus();
-  };
-
-  const handleSave = async () => {
-    if (!pinModal || !storeId) return;
-    const { productId } = pinModal;
-    const row = rows[productId];
+  const handleSubmit = async () => {
     const pinStr = pin.join("");
-    if (pinStr.length !== 4) { setPinError(t("alertPinRequired")); return; }
-    if (!row.remaining) { setPinError(t("remainingQtyLabel") + " ต้องกรอก"); return; }
+    if (pinStr.length !== 4) { setPinError("กรุณากรอก PIN 4 หลัก"); return; }
 
-    setSubmitting(true);
-    setPinError("");
-    const res = await fetch("/api/daily-checks", {
+    // verify PIN ก่อน
+    const verifyRes = await fetch("/api/employees/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        storeId: Number(storeId),
-        productId,
-        remainingQty: Number(row.remaining),
-        wasteQty: Number(row.waste) || 0,
-        pin: pinStr,
-      }),
+      body: JSON.stringify({ pin: pinStr, storeId }),
     });
-    const data = await res.json();
-    setSubmitting(false);
-    if (!res.ok) { setPinError(data.error ?? t("error")); return; }
+    if (!verifyRes.ok) { setPinError("PIN ไม่ถูกต้อง"); return; }
 
-    setRows(prev => ({ ...prev, [productId]: { ...prev[productId], saved: true, error: "" } }));
-    setPinModal(null);
+    setSubmitting(true);
+    const todayBKK = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+
+    // ส่งทุก item ที่กรอกค่าไว้
+    const promises = items
+      .filter(it => values[it.id] !== undefined && values[it.id] !== "")
+      .map(it =>
+        fetch("/api/daily-checks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            storeId: Number(storeId),
+            productId: it.id,
+            remainingQty: Number(values[it.id]),
+            wasteQty: 0,
+            pin: pinStr,
+            checkDate: todayBKK,
+          }),
+        })
+      );
+
+    const results = await Promise.all(promises);
+    setSubmitting(false);
+
+    if (results.every(r => r.ok)) {
+      const newDone = new Set(checkedToday);
+      items.filter(it => values[it.id] !== "").forEach(it => newDone.add(it.id));
+      setCheckedToday(newDone);
+      setSavedOk(true);
+      setTimeout(() => { setPinOpen(false); setSavedOk(false); }, 1200);
+    } else {
+      setPinError("เกิดข้อผิดพลาด กรุณาลองใหม่");
+    }
   };
 
-  const allDone = items.length > 0 && items.every(it => rows[it.id]?.saved);
+  const todayTH = new Date().toLocaleDateString("th-TH", {
+    day: "numeric", month: "long", year: "numeric",
+  });
 
   if (!mounted) return null;
-  if (loading) return <div className="p-8 text-center text-gray-400">{t("loading")}</div>;
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-24">
-      <header className="border-b border-gray-100 bg-white sticky top-0 z-10">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.push("/dashboard")}
-              className="grid h-9 w-9 place-items-center rounded-xl border border-gray-200 hover:border-black transition-all">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <div>
-              <h1 className="text-base font-bold text-gray-900">{t("freshCheckTitle")}</h1>
-              <p className="text-xs text-gray-400">{new Date().toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long" })}</p>
-            </div>
+    <div className="min-h-screen bg-orange-50/40 font-sans pb-32">
+
+      {/* Header */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="max-w-lg mx-auto px-4 py-4 flex items-center gap-3">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div>
+            <p className="text-base font-semibold text-gray-900">เช็คผักสด</p>
+            <p className="text-xs text-gray-400">{todayTH}</p>
           </div>
-          <LangSwitcher />
+          {checkedToday.size > 0 && (
+            <span className="ml-auto text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-100 rounded-full px-3 py-1">
+              ✓ {checkedToday.size}/{items.length} รายการ
+            </span>
+          )}
         </div>
-      </header>
+      </div>
 
-      <div className="mx-auto max-w-2xl px-6 py-6 space-y-4">
-        {allDone && (
-          <div className="rounded-2xl bg-green-50 border border-green-200 p-5 text-center">
-            <div className="text-2xl mb-1">✅</div>
-            <p className="text-sm font-bold text-green-800">{t("freshAllDone")}</p>
-          </div>
-        )}
+      <div className="max-w-lg mx-auto px-4 pt-4">
 
-        {items.length === 0 ? (
-          <div className="rounded-2xl bg-white border border-gray-200 p-12 text-center">
-            <div className="text-4xl mb-3">🥬</div>
-            <p className="text-sm text-gray-500">{t("freshItemsEmpty")}</p>
+        {loading ? (
+          <div className="text-center py-16 text-gray-400 text-sm">กำลังโหลด...</div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-3">🥬</div>
+            <p className="text-sm text-gray-500">ยังไม่มีสินค้าของสด</p>
+            <p className="text-xs text-gray-400 mt-1">ให้แอดมินตั้งค่าที่หน้า Inventory ก่อน</p>
           </div>
         ) : (
-          items.map(item => {
-            const row = rows[item.id] ?? { remaining: "", waste: "", saved: false, saving: false, error: "" };
-            const existingCheck = todayChecks[String(item.id)];
-            return (
-              <div key={item.id} className={`rounded-2xl border bg-white p-5 transition-all ${row.saved ? "border-green-200" : "border-gray-200"}`}>
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-3">
-                    {item.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.image} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-100" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-xl bg-green-50 border border-green-100 grid place-items-center text-2xl">🥬</div>
-                    )}
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">{item.name}</p>
-                      {item.parLevel !== null && (
-                        <p className="text-xs text-gray-400">{t("colParLevel")}: {item.parLevel} {item.unit}</p>
-                      )}
-                    </div>
-                  </div>
-                  {row.saved ? (
-                    <span className="shrink-0 rounded-full bg-green-100 text-green-700 text-xs font-bold px-3 py-1">{t("checkedToday")} ✓</span>
-                  ) : (
-                    <span className="shrink-0 rounded-full bg-amber-50 text-amber-600 text-xs font-semibold px-3 py-1">{t("notCheckedToday")}</span>
-                  )}
-                </div>
-
-                {existingCheck && row.saved && (
-                  <div className="mb-3 text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2">
-                    {t("colCheckedBy")}: {existingCheck.checkedByName ?? "–"} · {t("remainingQtyLabel")}: {existingCheck.remainingQty} {item.unit}
-                    {Number(existingCheck.wasteQty) > 0 && ` · ${t("wasteQtyLabel")}: ${existingCheck.wasteQty} ${item.unit}`}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 block mb-1">
-                      {t("remainingQtyLabel")} ({item.unit}) *
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={row.remaining}
-                      onChange={e => setRows(prev => ({ ...prev, [item.id]: { ...prev[item.id], remaining: e.target.value } }))}
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 block mb-1">
-                      {t("wasteQtyLabel")} ({item.unit})
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={row.waste}
-                      onChange={e => setRows(prev => ({ ...prev, [item.id]: { ...prev[item.id], waste: e.target.value } }))}
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => openPinModal(item.id)}
-                  disabled={!row.remaining}
-                  className="w-full rounded-xl bg-black text-white text-sm font-semibold py-2.5 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition-all"
+          <div className="flex flex-col gap-2">
+            {items.map(item => {
+              const isDone = checkedToday.has(item.id);
+              return (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-3 bg-white rounded-2xl px-4 py-3 border transition-all ${
+                    isDone ? "border-orange-200" : "border-gray-100"
+                  }`}
                 >
-                  {t("saveCheckBtn")}
-                </button>
-                {row.error && <p className="text-xs text-red-600 mt-1.5">{row.error}</p>}
-              </div>
-            );
-          })
+                  {/* Icon / Image */}
+                  {item.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.image}
+                      alt=""
+                      className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0 text-lg">
+                      🥬
+                    </div>
+                  )}
+
+                  {/* Name */}
+                  <span className="flex-1 text-sm font-medium text-gray-800">
+                    {item.name}
+                    {isDone && <span className="ml-1.5 text-orange-500 text-xs">✓</span>}
+                  </span>
+
+                  {/* Input */}
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.1"
+                    placeholder="0"
+                    value={values[item.id] ?? ""}
+                    onChange={e => setValues(prev => ({ ...prev, [item.id]: e.target.value }))}
+                    className="w-16 text-center text-base font-semibold bg-gray-50 border border-gray-200 rounded-xl py-1.5 outline-none focus:border-orange-400 focus:bg-white transition-all"
+                    aria-label={`${item.name} เหลือเท่าไหร่`}
+                  />
+
+                  {/* Unit */}
+                  <span className="text-xs text-gray-400 w-6 flex-shrink-0">{item.unit}</span>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      {/* PIN Modal */}
-      {pinModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-xs p-6">
-            <h3 className="text-base font-bold text-center mb-1">{t("confirmPin")}</h3>
-            <p className="text-xs text-gray-400 text-center mb-5">{t("pinLabel")}</p>
-            <div className="flex justify-center gap-3 mb-4">
-              {pin.map((d, i) => (
-                <input
-                  key={i}
-                  ref={pinRefs[i]}
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={d}
-                  onKeyDown={e => handlePinKey(i, e)}
-                  onChange={e => handlePinInput(i, e.target.value)}
-                  className="w-12 h-12 rounded-xl border-2 border-gray-200 text-center text-xl font-black outline-none focus:border-black transition-all"
-                />
-              ))}
-            </div>
-            {pinError && <p className="text-xs text-red-600 text-center mb-3">{pinError}</p>}
-            <div className="flex gap-2">
-              <button onClick={() => setPinModal(null)}
-                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                {t("cancel")}
-              </button>
-              <button onClick={handleSave} disabled={submitting || pin.join("").length !== 4}
-                className="flex-1 rounded-xl bg-black text-white py-2.5 text-sm font-semibold hover:bg-gray-800 disabled:bg-gray-300">
-                {submitting ? "..." : t("confirm")}
-              </button>
-            </div>
+      {/* Submit button — fixed bottom */}
+      {items.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-100 px-4 py-4">
+          <div className="max-w-lg mx-auto">
+            <button
+              onClick={openPin}
+              disabled={filledCount === 0}
+              className="w-full rounded-2xl bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold text-sm py-4 transition-all"
+            >
+              {filledCount > 0 ? `บันทึกยอดวันนี้  (${filledCount} รายการ)` : "บันทึกยอดวันนี้"}
+            </button>
           </div>
         </div>
       )}
-    </main>
+
+      {/* PIN Bottom Sheet */}
+      {pinOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center"
+          onClick={e => { if (e.target === e.currentTarget && !submitting) setPinOpen(false); }}
+        >
+          <div className="bg-white w-full max-w-sm rounded-t-3xl px-6 pt-6 pb-10">
+            {savedOk ? (
+              <div className="text-center py-6">
+                <div className="text-4xl mb-2">✅</div>
+                <p className="text-base font-bold text-green-700">บันทึกสำเร็จ!</p>
+              </div>
+            ) : (
+              <>
+                <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-6" />
+                <p className="text-base font-semibold text-gray-900 text-center mb-1">ยืนยันตัวตน</p>
+                <p className="text-xs text-gray-400 text-center mb-6">กรอก PIN พนักงานเพื่อบันทึกยอด</p>
+
+                <PinBoxes value={pin} onChange={v => { setPin(v); setPinError(""); }} autoFocus />
+
+                {pinError && (
+                  <p className="text-xs text-red-500 text-center mt-3">{pinError}</p>
+                )}
+
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting || pin.join("").length !== 4}
+                  className="mt-6 w-full rounded-2xl bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold text-sm py-4 transition-all"
+                >
+                  {submitting ? "กำลังบันทึก..." : "ยืนยัน"}
+                </button>
+                <button
+                  onClick={() => setPinOpen(false)}
+                  disabled={submitting}
+                  className="mt-2 w-full py-2 text-sm text-gray-400 hover:text-gray-600"
+                >
+                  ยกเลิก
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
