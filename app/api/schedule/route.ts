@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const weekStart = searchParams.get("weekStart");
   if (!weekStart) return NextResponse.json({ error: "กรุณาระบุ weekStart" }, { status: 400 });
+  const days = Math.min(Number(searchParams.get("days") ?? "7"), 42);
 
   const storeId = await resolveStoreId(user, searchParams.get("storeId"));
   if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
       JOIN users u ON u.id = se.user_id
       WHERE se.store_id = ${storeId}
         AND se.work_date >= ${weekStart}::date
-        AND se.work_date < ${weekStart}::date + interval '7 days'
+        AND se.work_date < ${weekStart}::date + (${days} || ' days')::interval
     `,
     sql`
       SELECT id, name, pin FROM users

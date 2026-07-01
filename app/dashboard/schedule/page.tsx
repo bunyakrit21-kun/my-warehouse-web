@@ -64,7 +64,12 @@ function ScheduleContent() {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [storeId, setStoreId] = useState("");
+  const [view, setView] = useState<"week" | "month">("week");
   const [weekStart, setWeekStart] = useState(() => formatDate(getMondayOf(new Date())));
+  const [monthStart, setMonthStart] = useState(() => {
+    const d = new Date();
+    return formatDate(new Date(d.getFullYear(), d.getMonth(), 1));
+  });
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -81,10 +86,10 @@ function ScheduleContent() {
   const [newShiftTime, setNewShiftTime] = useState("08:00");
   const [newShiftColor, setNewShiftColor] = useState("blue");
 
-  const fetchData = useCallback(async (sid: string, ws: string) => {
+  const fetchData = useCallback(async (sid: string, ws: string, days = 7) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/schedule?storeId=${sid}&weekStart=${ws}`, { cache: "no-store" });
+      const res = await fetch(`/api/schedule?storeId=${sid}&weekStart=${ws}&days=${days}`, { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
       setShifts(data.shifts);
@@ -207,6 +212,38 @@ function ScheduleContent() {
     if (storeId) fetchData(storeId, ws);
   };
 
+  // Month view helpers
+  const getMonthCalendarDays = (ms: string): Date[] => {
+    const first = new Date(ms + "T12:00:00");
+    const calStart = getMondayOf(new Date(first.getFullYear(), first.getMonth(), 1));
+    return Array.from({ length: 42 }, (_, i) => addDays(calStart, i));
+  };
+
+  const fetchMonthData = (sid: string, ms: string) => {
+    const days = getMonthCalendarDays(ms);
+    const start = formatDate(days[0]);
+    fetchData(sid, start, 42);
+  };
+
+  const prevMonth = () => {
+    const d = new Date(monthStart + "T12:00:00");
+    const ms = formatDate(new Date(d.getFullYear(), d.getMonth() - 1, 1));
+    setMonthStart(ms);
+    if (storeId) fetchMonthData(storeId, ms);
+  };
+  const nextMonth = () => {
+    const d = new Date(monthStart + "T12:00:00");
+    const ms = formatDate(new Date(d.getFullYear(), d.getMonth() + 1, 1));
+    setMonthStart(ms);
+    if (storeId) fetchMonthData(storeId, ms);
+  };
+
+  const switchView = (v: "week" | "month") => {
+    setView(v);
+    if (v === "month" && storeId) fetchMonthData(storeId, monthStart);
+    if (v === "week" && storeId) fetchData(storeId, weekStart);
+  };
+
   const weekLabel = (() => {
     const s = weekDays[0];
     const e = weekDays[6];
@@ -254,37 +291,64 @@ function ScheduleContent() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* View toggle */}
+              <div className="flex rounded-xl border border-gray-200 bg-gray-50 p-0.5 text-xs font-semibold">
+                <button onClick={() => switchView("week")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${view === "week" ? "bg-white shadow text-gray-900 border border-gray-200" : "text-gray-400 hover:text-gray-700"}`}>
+                  สัปดาห์
+                </button>
+                <button onClick={() => switchView("month")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${view === "month" ? "bg-white shadow text-gray-900 border border-gray-200" : "text-gray-400 hover:text-gray-700"}`}>
+                  ปฏิทิน
+                </button>
+              </div>
               <button onClick={handlePrint}
                 className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-black transition-all flex items-center gap-1.5">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
-                พิมพ์ตาราง
+                พิมพ์
               </button>
               <button onClick={() => setShiftModal(true)}
                 className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-black transition-all">
-                + เพิ่มตารางงาน
+                + ตารางงาน
               </button>
               <Link href="/dashboard" className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold hover:border-black transition-all">
-                กลับหน้าหลัก
+                กลับ
               </Link>
             </div>
           </div>
         </header>
 
         <div className="mx-auto max-w-7xl px-4 py-6">
-          {/* Week Navigator */}
-          <div className="flex items-center justify-between mb-6">
-            <button onClick={prevWeek} className="rounded-xl border border-gray-200 bg-white w-9 h-9 flex items-center justify-center hover:border-black transition-all text-gray-600 font-bold">‹</button>
-            <div className="text-center">
-              <p className="font-bold text-gray-900 text-lg">{weekLabel}</p>
-              <button onClick={() => { const ws = formatDate(getMondayOf(new Date())); setWeekStart(ws); if (storeId) fetchData(storeId, ws); }}
-                className="text-xs text-gray-400 hover:text-black transition-colors">
-                สัปดาห์นี้
-              </button>
+          {/* Navigator */}
+          {view === "week" ? (
+            <div className="flex items-center justify-between mb-6">
+              <button onClick={prevWeek} className="rounded-xl border border-gray-200 bg-white w-9 h-9 flex items-center justify-center hover:border-black transition-all text-gray-600 font-bold">‹</button>
+              <div className="text-center">
+                <p className="font-bold text-gray-900 text-lg">{weekLabel}</p>
+                <button onClick={() => { const ws = formatDate(getMondayOf(new Date())); setWeekStart(ws); if (storeId) fetchData(storeId, ws); }}
+                  className="text-xs text-gray-400 hover:text-black transition-colors">
+                  สัปดาห์นี้
+                </button>
+              </div>
+              <button onClick={nextWeek} className="rounded-xl border border-gray-200 bg-white w-9 h-9 flex items-center justify-center hover:border-black transition-all text-gray-600 font-bold">›</button>
             </div>
-            <button onClick={nextWeek} className="rounded-xl border border-gray-200 bg-white w-9 h-9 flex items-center justify-center hover:border-black transition-all text-gray-600 font-bold">›</button>
-          </div>
+          ) : (
+            <div className="flex items-center justify-between mb-6">
+              <button onClick={prevMonth} className="rounded-xl border border-gray-200 bg-white w-9 h-9 flex items-center justify-center hover:border-black transition-all text-gray-600 font-bold">‹</button>
+              <div className="text-center">
+                <p className="font-bold text-gray-900 text-lg">
+                  {MONTH_TH[new Date(monthStart + "T12:00:00").getMonth()]} {new Date(monthStart + "T12:00:00").getFullYear() + 543}
+                </p>
+                <button onClick={() => { const ms = formatDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)); setMonthStart(ms); if (storeId) fetchMonthData(storeId, ms); }}
+                  className="text-xs text-gray-400 hover:text-black transition-colors">
+                  เดือนนี้
+                </button>
+              </div>
+              <button onClick={nextMonth} className="rounded-xl border border-gray-200 bg-white w-9 h-9 flex items-center justify-center hover:border-black transition-all text-gray-600 font-bold">›</button>
+            </div>
+          )}
 
           {/* Attendance legend */}
           {shifts.length > 0 && (
@@ -298,7 +362,62 @@ function ScheduleContent() {
             </div>
           )}
 
-          {shifts.length === 0 ? (
+          {/* Month Calendar View */}
+          {view === "month" && (
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              {/* Day headers */}
+              <div className="grid grid-cols-7 border-b border-gray-100">
+                {DAY_TH.map((d, i) => (
+                  <div key={i} className="py-2 text-center text-xs font-bold text-gray-400">{d}</div>
+                ))}
+              </div>
+              {/* Calendar days */}
+              <div className="grid grid-cols-7">
+                {getMonthCalendarDays(monthStart).map((d, i) => {
+                  const dateStr = formatDate(d);
+                  const isThisMonth = d.getMonth() === new Date(monthStart + "T12:00:00").getMonth();
+                  const isToday = dateStr === today;
+                  const dayEntries = entries.filter(e => e.work_date.slice(0, 10) === dateStr);
+                  const uniqueEmps = Array.from(new Set(dayEntries.map(e => e.user_name)));
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => {
+                        const ws = formatDate(getMondayOf(d));
+                        setWeekStart(ws);
+                        setView("week");
+                        if (storeId) fetchData(storeId, ws);
+                      }}
+                      className={`min-h-[90px] p-2 border-b border-r border-gray-100 cursor-pointer hover:bg-gray-50 transition-all
+                        ${!isThisMonth ? "bg-gray-50/50" : ""}
+                        ${i % 7 === 6 ? "border-r-0" : ""}
+                        ${i >= 35 ? "border-b-0" : ""}
+                      `}
+                    >
+                      <div className={`text-xs font-black mb-1.5 w-6 h-6 flex items-center justify-center rounded-full
+                        ${isToday ? "bg-black text-white" : isThisMonth ? "text-gray-900" : "text-gray-300"}`}>
+                        {d.getDate()}
+                      </div>
+                      {/* Employee chips mini */}
+                      <div className="space-y-0.5">
+                        {uniqueEmps.slice(0, 3).map((name, ni) => (
+                          <div key={ni} className="text-[9px] font-semibold bg-blue-100 text-blue-700 rounded px-1 py-0.5 truncate leading-tight">
+                            {name}
+                          </div>
+                        ))}
+                        {uniqueEmps.length > 3 && (
+                          <div className="text-[9px] text-gray-400 font-semibold">+{uniqueEmps.length - 3} คน</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-400 text-center py-2 border-t border-gray-100">คลิกวันเพื่อดูรายละเอียดสัปดาห์</p>
+            </div>
+          )}
+
+          {view === "week" && (shifts.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-white p-16 text-center">
               <p className="text-4xl mb-3">📋</p>
               <p className="font-semibold text-gray-700 mb-1">ยังไม่มีตารางงาน</p>
@@ -390,7 +509,7 @@ function ScheduleContent() {
               </div>
               <p className="text-xs text-gray-400 mt-3 text-center">คลิกช่องเพื่อเพิ่ม/ลบพนักงาน • คลิกชิปชื่อเพื่อเช็คเข้างาน</p>
             </>
-          )}
+          ))}
         </div>
       </main>
 

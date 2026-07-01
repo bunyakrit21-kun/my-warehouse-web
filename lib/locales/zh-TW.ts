@@ -297,6 +297,28 @@ const zhTW: Record<LocaleKeys, string> = {
   csvCashTotal: "提領總金額（泰銖）",
 
   confirmDeleteMember: "從團隊中移除「%s」？",
+  rolePlaceholder: "如廚房、收銀、外送...",
+  scheduleWeekView: "週班表",
+  scheduleMonthView: "月曆",
+  freshCheckTitle: "每日生鮮盤點",
+  freshCheckDesc: "記錄今日生鮮庫存餘量",
+  freshSummaryTitle: "生鮮總覽與建議訂貨",
+  isFreshLabel: "生鮮商品",
+  parLevelLabel: "每日標準量",
+  remainingQtyLabel: "剩餘數量",
+  wasteQtyLabel: "耗損（選填）",
+  saveCheckBtn: "儲存今日盤點",
+  checkSavedOk: "儲存成功！",
+  checkedToday: "已盤點",
+  notCheckedToday: "未盤點",
+  freshItemsEmpty: "尚無生鮮商品，請先在庫存頁面設定。",
+  colParLevel: "標準/日",
+  colSuggestOrder: "建議訂購",
+  colAvgPerDay: "平均/日",
+  colCheckedBy: "盤點人員",
+  freshAllDone: "今日生鮮盤點已完成！",
+  freshGoCheck: "前往盤點頁面",
+  freshViewSummary: "查看總覽與訂單",
 };
 
 export default zhTW;

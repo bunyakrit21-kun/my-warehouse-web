@@ -19,11 +19,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (!storeId) return NextResponse.json({ error: "ไม่พบสินค้าหรือไม่มีสิทธิ์จัดการ" }, { status: 403 });
 
   try {
-    const { name, category, zone, stock, minStock, unit, image } = await request.json();
+    const { name, category, zone, stock, minStock, unit, image, isFresh, parLevel } = await request.json();
     await sql`
       UPDATE products
       SET name = ${name}, category = ${category}, zone = ${zone},
-          stock = ${stock}, min_stock = ${minStock}, unit = ${unit}, image = ${image}
+          stock = ${stock}, min_stock = ${minStock}, unit = ${unit}, image = ${image},
+          is_fresh = ${isFresh ?? false}, par_level = ${parLevel ?? null}
       WHERE id = ${id} AND store_id = ${storeId}
     `;
     return NextResponse.json({ success: true });

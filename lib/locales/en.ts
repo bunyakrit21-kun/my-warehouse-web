@@ -297,6 +297,28 @@ const en: Record<LocaleKeys, string> = {
   csvCashTotal: "Total Cash Withdrawn (THB)",
 
   confirmDeleteMember: "Remove \"%s\" from the team?",
+  rolePlaceholder: "e.g. Kitchen, Cashier, Delivery...",
+  scheduleWeekView: "Week",
+  scheduleMonthView: "Calendar",
+  freshCheckTitle: "Fresh Produce Daily Check",
+  freshCheckDesc: "Record today's remaining stock for fresh items",
+  freshSummaryTitle: "Fresh Produce Summary & Order Suggestions",
+  isFreshLabel: "Fresh Item",
+  parLevelLabel: "Daily Par Level",
+  remainingQtyLabel: "Remaining Qty",
+  wasteQtyLabel: "Waste (Optional)",
+  saveCheckBtn: "Save Today's Count",
+  checkSavedOk: "Saved successfully!",
+  checkedToday: "Checked",
+  notCheckedToday: "Not checked",
+  freshItemsEmpty: "No fresh items yet. Set them up in Inventory first.",
+  colParLevel: "Par/Day",
+  colSuggestOrder: "Suggest Order",
+  colAvgPerDay: "Avg/Day",
+  colCheckedBy: "Checked By",
+  freshAllDone: "All fresh items checked today!",
+  freshGoCheck: "Go to Daily Check",
+  freshViewSummary: "View Summary & Order",
 };
 
 export default en;

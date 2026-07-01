@@ -238,11 +238,21 @@ export default function StoresPage() {
               <form onSubmit={handleAddMember} className="grid grid-cols-2 gap-2 mb-5">
                 <input type="text" placeholder={t("memberNamePH")} value={newName} onChange={e => setNewName(e.target.value)}
                   className="col-span-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black" required />
-                <select value={newRole} onChange={e => setNewRole(e.target.value)}
-                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-black">
-                  <option value="staff">{t("roleStaff")}</option>
-                  <option value="manager">{t("roleManager")}</option>
-                </select>
+                <input
+                  list="role-suggestions"
+                  value={newRole}
+                  onChange={e => setNewRole(e.target.value)}
+                  placeholder={t("rolePlaceholder")}
+                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all"
+                />
+                <datalist id="role-suggestions">
+                  <option value="staff" />
+                  <option value="manager" />
+                  <option value="kitchen" />
+                  <option value="cashier" />
+                  <option value="delivery" />
+                  <option value="cleaning" />
+                </datalist>
                 <input type="password" inputMode="numeric" maxLength={4} placeholder={t("pin4")}
                   value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, ""))}
                   className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-center tracking-widest outline-none focus:border-black" required />

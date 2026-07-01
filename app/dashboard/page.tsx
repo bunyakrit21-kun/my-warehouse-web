@@ -255,6 +255,20 @@ export default function DashboardPage() {
           </div>
         </Link>
 
+        {/* การ์ด เช็คของสด */}
+        <div className="grid grid-cols-2 gap-4 mb-5">
+          <Link href={`/dashboard/fresh-check${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-green-100 bg-green-50 p-5 shadow-sm hover:border-green-400 transition-all">
+            <div className="text-2xl mb-2">🥬</div>
+            <p className="text-xs font-bold text-green-700 uppercase tracking-wider">{t("freshCheckTitle")}</p>
+            <p className="text-xs text-green-600/70 mt-0.5">{t("freshCheckDesc")}</p>
+          </Link>
+          <Link href={`/dashboard/fresh-summary${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm hover:border-amber-400 transition-all">
+            <div className="text-2xl mb-2">📊</div>
+            <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">{t("freshSummaryTitle")}</p>
+            <p className="text-xs text-amber-600/70 mt-0.5">{t("freshViewSummary")}</p>
+          </Link>
+        </div>
+
         {/* notification bar */}
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3.5 flex items-center gap-3 shadow-sm">
           <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />

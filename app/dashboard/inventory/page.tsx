@@ -15,6 +15,8 @@ interface Product {
   unit: string;
   image: string;
   createdAt: string;
+  isFresh: boolean;
+  parLevel: number | null;
 }
 
 export default function InventoryPage() {
@@ -51,6 +53,8 @@ export default function InventoryPage() {
   const [unit, setUnit] = useState("");
   const [imageFile, setImageFile] = useState("");
 
+  const [isFresh, setIsFresh] = useState(false);
+  const [parLevel, setParLevel] = useState("");
   const [formCreatorPin, setFormCreatorPin] = useState("");
   const [formPinError, setFormPinError] = useState("");
   const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
@@ -135,7 +139,8 @@ export default function InventoryPage() {
   const openCreateModal = () => {
     setEditingId(null); setName(""); setStock(""); setMinStock(""); setUnit(t("defaultUnit"));
     setZone(zonesList[0] || ""); setCategory(categoriesList[0] || "");
-    setImageFile(""); setFormCreatorPin(""); setFormPinError(""); setIsFormModalOpen(true);
+    setImageFile(""); setIsFresh(false); setParLevel("");
+    setFormCreatorPin(""); setFormPinError(""); setIsFormModalOpen(true);
   };
 
   const openEditModal = (product: Product) => {
@@ -170,6 +175,8 @@ export default function InventoryPage() {
           minStock: Number(minStock) || 0,
           unit: unit.trim(),
           image: imageFile,
+          isFresh,
+          parLevel: parLevel ? Number(parLevel) : null,
         }),
       });
       if (response.ok) {
@@ -192,6 +199,8 @@ export default function InventoryPage() {
             unit: unit.trim(),
             image: imageFile,
             storeId,
+            isFresh,
+            parLevel: parLevel ? Number(parLevel) : null,
           }),
         });
         if (response.ok) {
@@ -238,6 +247,8 @@ export default function InventoryPage() {
         setMinStock(String(selectedProduct.minStock));
         setUnit(selectedProduct.unit);
         setImageFile(selectedProduct.image);
+        setIsFresh(selectedProduct.isFresh ?? false);
+        setParLevel(selectedProduct.parLevel !== null ? String(selectedProduct.parLevel) : "");
         setFormCreatorPin("");
         setFormPinError("");
         setIsFormModalOpen(true);
@@ -359,7 +370,10 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-5 py-4">
                           <div className="text-[10px] text-gray-400 font-bold tracking-wide">{p.id}</div>
-                          <div className="font-bold text-gray-900 leading-tight text-sm">{p.name}</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="font-bold text-gray-900 leading-tight text-sm">{p.name}</div>
+                            {p.isFresh && <span className="text-[9px] font-black bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">🥬 สด</span>}
+                          </div>
                           <div className="text-[10px] text-gray-400 font-medium mt-0.5">{t("uploadedAt")} {p.createdAt}</div>
                         </td>
                         <td className="px-5 py-4">
@@ -466,6 +480,31 @@ export default function InventoryPage() {
               <div>
                 <label className="text-xs font-bold text-gray-500 block mb-1">{t("minStockLabel")}</label>
                 <input type="number" min="0" placeholder={t("minStockPlaceholder")} value={minStock} onChange={(e) => setMinStock(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3 text-sm outline-none focus:border-black focus:bg-white transition-all font-sans" />
+              </div>
+
+              {/* Fresh produce toggle */}
+              <div className="rounded-2xl border border-green-100 bg-green-50/50 p-4 space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div
+                    onClick={() => setIsFresh(!isFresh)}
+                    className={`relative w-10 h-6 rounded-full transition-colors ${isFresh ? "bg-green-500" : "bg-gray-200"}`}
+                  >
+                    <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isFresh ? "translate-x-4" : ""}`} />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700">{t("isFreshLabel")} 🥬</span>
+                </label>
+                {isFresh && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 block mb-1">{t("parLevelLabel")} ({unit || "หน่วย"})</label>
+                    <input
+                      type="number" min="0" step="0.1"
+                      placeholder="0"
+                      value={parLevel}
+                      onChange={e => setParLevel(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-sm outline-none focus:border-black transition-all"
+                    />
+                  </div>
+                )}
               </div>
 
               <div>

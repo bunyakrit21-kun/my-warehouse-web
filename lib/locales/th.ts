@@ -315,6 +315,32 @@ const th = {
 
   // Stores
   confirmDeleteMember: "ลบ \"%s\" ออกจากทีมงาน?",
+  rolePlaceholder: "เช่น ครัว, แคชเชียร์, ส่งของ...",
+
+  // Schedule views
+  scheduleWeekView: "ตารางสัปดาห์",
+  scheduleMonthView: "ปฏิทิน",
+
+  // Fresh produce daily check
+  freshCheckTitle: "เช็คของสดประจำวัน",
+  freshCheckDesc: "บันทึกยอดคงเหลือสินค้าของสดประจำวัน",
+  freshSummaryTitle: "ภาพรวมของสดและแนะนำสั่ง",
+  isFreshLabel: "สินค้าของสด",
+  parLevelLabel: "ปริมาณมาตรฐาน/วัน (par level)",
+  remainingQtyLabel: "ยอดคงเหลือ",
+  wasteQtyLabel: "ของเสีย (ไม่บังคับ)",
+  saveCheckBtn: "บันทึกยอดวันนี้",
+  checkSavedOk: "บันทึกยอดสำเร็จ!",
+  checkedToday: "เช็คแล้ว",
+  notCheckedToday: "ยังไม่เช็ค",
+  freshItemsEmpty: "ยังไม่มีสินค้าของสด กำหนดได้ที่หน้า Inventory",
+  colParLevel: "มาตรฐาน/วัน",
+  colSuggestOrder: "แนะนำสั่ง",
+  colAvgPerDay: "เฉลี่ย/วัน",
+  colCheckedBy: "เช็คโดย",
+  freshAllDone: "เช็คของสดครบแล้ววันนี้!",
+  freshGoCheck: "ไปหน้าเช็คของสด",
+  freshViewSummary: "ดูสรุปและแนะนำสั่ง",
 } as const;
 
 export default th;

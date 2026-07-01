@@ -17,6 +17,8 @@ export async function GET(request: Request) {
         stock::int as stock,
         min_stock::int as "minStock",
         unit, image,
+        COALESCE(is_fresh, false) as "isFresh",
+        par_level as "parLevel",
         TO_CHAR(created_at, 'DD/MM/YYYY, HH24:MI') as "createdAt"
       FROM products
       WHERE store_id = ${storeId}
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { name, category, zone, stock, minStock, unit, image, storeId: bodyStoreId } = body;
+    const { name, category, zone, stock, minStock, unit, image, storeId: bodyStoreId, isFresh, parLevel } = body;
 
     const storeId = await resolveStoreId(user, bodyStoreId);
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
@@ -47,8 +49,8 @@ export async function POST(request: Request) {
       const nextId = `PROD${String(maxIdNum + 1).padStart(3, "0")}`;
 
       const [inserted] = await sql`
-        INSERT INTO products (id, name, category, zone, stock, min_stock, unit, image, store_id)
-        VALUES (${nextId}, ${name}, ${category}, ${zone}, ${stock}, ${minStock}, ${unit}, ${image ?? ""}, ${storeId})
+        INSERT INTO products (id, name, category, zone, stock, min_stock, unit, image, store_id, is_fresh, par_level)
+        VALUES (${nextId}, ${name}, ${category}, ${zone}, ${stock}, ${minStock}, ${unit}, ${image ?? ""}, ${storeId}, ${isFresh ?? false}, ${parLevel ?? null})
         RETURNING id, name
       `;
       return inserted;

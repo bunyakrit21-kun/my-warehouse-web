@@ -297,6 +297,28 @@ const vi: Record<LocaleKeys, string> = {
   csvCashTotal: "Tổng tiền rút (Baht)",
 
   confirmDeleteMember: "Xóa \"%s\" khỏi nhóm?",
+  rolePlaceholder: "VD: Bếp, Thu ngân, Giao hàng...",
+  scheduleWeekView: "Tuần",
+  scheduleMonthView: "Lịch tháng",
+  freshCheckTitle: "Kiểm tra hàng tươi hằng ngày",
+  freshCheckDesc: "Ghi lại tồn kho hàng tươi trong ngày",
+  freshSummaryTitle: "Tổng quan hàng tươi & đề xuất đặt hàng",
+  isFreshLabel: "Hàng tươi sống",
+  parLevelLabel: "Tiêu chuẩn mỗi ngày",
+  remainingQtyLabel: "Số lượng còn lại",
+  wasteQtyLabel: "Hàng hỏng (tuỳ chọn)",
+  saveCheckBtn: "Lưu kiểm kê hôm nay",
+  checkSavedOk: "Lưu thành công!",
+  checkedToday: "Đã kiểm",
+  notCheckedToday: "Chưa kiểm",
+  freshItemsEmpty: "Chưa có hàng tươi. Vui lòng thiết lập trong Kho hàng trước.",
+  colParLevel: "Tiêu chuẩn/ngày",
+  colSuggestOrder: "Đề xuất đặt",
+  colAvgPerDay: "TB/ngày",
+  colCheckedBy: "Người kiểm",
+  freshAllDone: "Đã kiểm tra hết hàng tươi hôm nay!",
+  freshGoCheck: "Đến trang kiểm tra",
+  freshViewSummary: "Xem tổng quan & đặt hàng",
 };
 
 export default vi;
