@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
+import PinBoxes from "@/components/PinBoxes";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useT, LangSwitcher } from "@/lib/i18n";
@@ -83,7 +84,7 @@ export default function MovementPage() {
   const [cashAmount, setCashAmount] = useState<number | "">("");
   const [cashReason, setCashReason] = useState("");
 
-  const [pin, setPin] = useState("");
+  const [pin, setPin] = useState(["", "", "", ""]);
   const [employeeName, setEmployeeName] = useState("");
   const [verifyingPin, setVerifyingPin] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
@@ -159,8 +160,6 @@ export default function MovementPage() {
   const isOverStocked = type === "MOVE_OUT" && currentProduct && Number(qty) > currentProduct.stock;
   const isCashMode = type === "CASH_OUT";
 
-  const pinInputRefs = useRef<Array<HTMLInputElement | null>>([null, null, null, null]);
-
   const verifyPin = async (pinToVerify: string) => {
     setVerifyingPin(true);
     try {
@@ -178,51 +177,10 @@ export default function MovementPage() {
     }
   };
 
-  const handlePinBoxChange = (index: number, rawValue: string) => {
-    const digit = rawValue.replace(/\D/g, "").slice(-1);
-    if (!digit) return;
-
-    let newPin: string;
-    if (index > pin.length) {
-      pinInputRefs.current[pin.length]?.focus();
-      return;
-    } else if (index === pin.length) {
-      newPin = pin + digit;
-    } else {
-      newPin = pin.slice(0, index) + digit + pin.slice(index + 1);
-    }
-
-    setPin(newPin);
-    setEmployeeName("");
-    if (index < 3) pinInputRefs.current[index + 1]?.focus();
-    if (newPin.length === 4) verifyPin(newPin);
-  };
-
-  const handlePinBoxKeyDown = (_index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace") {
-      e.preventDefault();
-      if (pin.length === 0) return;
-      const newPin = pin.slice(0, -1);
-      setPin(newPin);
-      setEmployeeName("");
-      pinInputRefs.current[newPin.length]?.focus();
-    }
-  };
-
-  const handlePinPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
-    if (!pasted) return;
-    setPin(pasted);
-    setEmployeeName("");
-    pinInputRefs.current[Math.min(pasted.length, 3)]?.focus();
-    if (pasted.length === 4) verifyPin(pasted);
-  };
-
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (pin.length !== 4 || employeeName.includes("❌") || !employeeName) {
+    if (pin.join("").length !== 4 || employeeName.includes("❌") || !employeeName) {
       return alert(t("alertPinRequired"));
     }
 
@@ -238,7 +196,7 @@ export default function MovementPage() {
           body: JSON.stringify({
             amount: Number(cashAmount),
             reason: cashReason.trim(),
-            pin,
+            pin: pin.join(""),
             storeId,
           }),
         });
@@ -270,7 +228,7 @@ export default function MovementPage() {
           type,
           qty: Number(qty),
           note: note.trim() || "",
-          pin,
+          pin: pin.join(""),
           storeId,
         }),
       });
@@ -292,9 +250,10 @@ export default function MovementPage() {
     return <div className="p-8 text-center text-sm font-sans text-gray-400">{t("loadingDb")}</div>;
   }
 
+  const pinStr = pin.join("");
   const canSubmit = isCashMode
-    ? !!cashAmount && Number(cashAmount) > 0 && !!cashReason.trim() && pin.length === 4 && !!employeeName && !employeeName.includes("❌")
-    : !!selectedProductId && pin.length === 4 && !!employeeName && !employeeName.includes("❌") && !isOverStocked;
+    ? !!cashAmount && Number(cashAmount) > 0 && !!cashReason.trim() && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌")
+    : !!selectedProductId && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌") && !isOverStocked;
 
   return (
     <main className="min-h-screen bg-gray-50 text-black font-sans antialiased pb-12">
@@ -470,34 +429,22 @@ export default function MovementPage() {
 
               {/* PIN */}
               <div className="pt-3 border-t border-gray-100">
-                <label className="text-xs font-bold text-gray-700 block mb-2">{t("pinLabel")}</label>
-                <div className="flex items-center gap-4 flex-wrap">
-                  <div className="flex gap-3">
-                    {[0, 1, 2, 3].map((i) => (
-                      <input
-                        key={i}
-                        ref={(el) => { pinInputRefs.current[i] = el; }}
-                        type="password"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={pin[i] ?? ""}
-                        onChange={(e) => handlePinBoxChange(i, e.target.value)}
-                        onKeyDown={(e) => handlePinBoxKeyDown(i, e)}
-                        onClick={() => pinInputRefs.current[Math.min(pin.length, 3)]?.focus()}
-                        onPaste={handlePinPaste}
-                        className={`w-12 h-12 rounded-xl border text-center text-xl font-black outline-none transition-all
-                          ${pin[i] !== undefined ? "border-gray-900 bg-white" : "border-gray-200 bg-gray-50"}
-                          focus:border-black focus:bg-white focus:ring-2 focus:ring-black/10`}
-                      />
-                    ))}
-                  </div>
-                  {verifyingPin && <span className="text-xs text-gray-400">{t("verifying")}</span>}
-                  {!verifyingPin && employeeName && (
-                    <span className={`text-xs font-bold px-3 py-2 rounded-xl border ${employeeName.includes("❌") ? "bg-red-50 text-red-600 border-red-100" : "bg-green-50 text-green-700 border-green-100"}`}>
-                      {employeeName}
-                    </span>
-                  )}
-                </div>
+                <label className="text-xs font-bold text-gray-700 block mb-3">{t("pinLabel")}</label>
+                <PinBoxes
+                  value={pin}
+                  onChange={v => { setPin(v); setEmployeeName(""); }}
+                  onComplete={verifyPin}
+                />
+                {verifyingPin && (
+                  <p className="text-center text-xs text-gray-400 mt-3">{t("verifying")}</p>
+                )}
+                {!verifyingPin && employeeName && (
+                  <p className={`text-center text-xs font-bold mt-3 px-3 py-2 rounded-xl border ${
+                    employeeName.includes("❌") ? "bg-red-50 text-red-600 border-red-100" : "bg-green-50 text-green-700 border-green-100"
+                  }`}>
+                    {employeeName}
+                  </p>
+                )}
               </div>
 
               <button

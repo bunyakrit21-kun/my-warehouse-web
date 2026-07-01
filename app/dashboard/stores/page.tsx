@@ -242,20 +242,15 @@ export default function StoresPage() {
               <form onSubmit={handleAddMember} className="flex flex-col gap-2 mb-5">
                 <input type="text" placeholder={t("memberNamePH")} value={newName} onChange={e => setNewName(e.target.value)}
                   className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" required />
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={newRole}
-                    onChange={e => { setNewRole(e.target.value); setCustomRole(""); }}
-                    className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all"
-                  >
-                    <option value="staff">{t("roleStaff")}</option>
-                    <option value="manager">{t("roleManager")}</option>
-                    <option value="other">อื่นๆ...</option>
-                  </select>
-                  <div className="flex items-center justify-center">
-                    <PinBoxes value={newPin} onChange={setNewPin} size="sm" />
-                  </div>
-                </div>
+                <select
+                  value={newRole}
+                  onChange={e => { setNewRole(e.target.value); setCustomRole(""); }}
+                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all"
+                >
+                  <option value="staff">{t("roleStaff")}</option>
+                  <option value="manager">{t("roleManager")}</option>
+                  <option value="other">อื่นๆ...</option>
+                </select>
                 {newRole === "other" && (
                   <input
                     type="text"
@@ -267,6 +262,10 @@ export default function StoresPage() {
                     required
                   />
                 )}
+                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 text-center mb-3">PIN พนักงาน</p>
+                  <PinBoxes value={newPin} onChange={setNewPin} />
+                </div>
                 <button type="submit" disabled={addingMember}
                   className="rounded-xl bg-black text-white text-sm font-semibold py-2.5 hover:bg-gray-800 disabled:bg-gray-300 transition-all">
                   {addingMember ? t("addingMemberStatus") : `+ ${t("addMemberBtn")}`}
@@ -313,23 +312,23 @@ export default function StoresPage() {
                       {/* Inline PIN reset */}
                       {pinResetId === m.id && (
                         <div className="mt-3 pt-3 border-t border-gray-200">
-                          <p className="text-xs font-semibold text-gray-500 mb-2 text-center">PIN ใหม่</p>
-                          <PinBoxes value={pinResetValue} onChange={v => { setPinResetValue(v); setPinResetMsg(null); }} autoFocus size="sm" />
+                          <p className="text-xs font-semibold text-gray-500 text-center mb-3">PIN ใหม่สำหรับ {m.name}</p>
+                          <PinBoxes value={pinResetValue} onChange={v => { setPinResetValue(v); setPinResetMsg(null); }} />
+                          {pinResetMsg?.id === m.id && (
+                            <p className={`text-xs font-semibold text-center mt-2 ${pinResetMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
+                              {pinResetMsg.text}
+                            </p>
+                          )}
                           <div className="flex items-center justify-center gap-2 mt-3">
                             <button
                               onClick={() => handleResetPin(m.id)}
                               disabled={savingPin || pinResetValue.join("").length !== 4}
-                              className="rounded-lg bg-black text-white text-xs font-semibold px-4 py-1.5 hover:bg-gray-800 disabled:bg-gray-300 transition-all">
+                              className="rounded-xl bg-black text-white text-sm font-semibold px-6 py-2 hover:bg-gray-800 disabled:bg-gray-300 transition-all">
                               {savingPin ? "..." : t("confirm")}
                             </button>
                             <button onClick={() => { setPinResetId(null); setPinResetMsg(null); }}
-                              className="text-xs text-gray-400 hover:text-gray-600">{t("cancel")}</button>
+                              className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">{t("cancel")}</button>
                           </div>
-                          {pinResetMsg?.id === m.id && (
-                            <p className={`text-xs font-semibold text-center mt-1 ${pinResetMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
-                              {pinResetMsg.text}
-                            </p>
-                          )}
                         </div>
                       )}
                     </div>
