@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -57,7 +57,7 @@ function addDays(d: Date, n: number): Date {
   return r;
 }
 
-export default function SchedulePage() {
+function ScheduleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [storeId, setStoreId] = useState("");
@@ -430,5 +430,17 @@ export default function SchedulePage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function SchedulePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-400">
+        กำลังโหลด...
+      </div>
+    }>
+      <ScheduleContent />
+    </Suspense>
   );
 }
