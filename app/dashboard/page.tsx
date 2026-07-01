@@ -245,7 +245,7 @@ export default function DashboardPage() {
         </div>
 
         {/* การ์ด ตารางงาน */}
-        <Link href={`/dashboard/schedule`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all mb-5">
+        <Link href={`/dashboard/schedule${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all mb-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">ตารางงาน</p>

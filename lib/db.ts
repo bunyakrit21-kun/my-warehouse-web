@@ -1,15 +1,14 @@
-// lib/db.ts
 import postgres from "postgres";
 
 const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not set");
 
-if (!connectionString) {
-  throw new Error("❌ กรุณาตั้งค่า DATABASE_URL ในไฟล์ .env.local ก่อนทำงาน");
-}
-
-// สร้าง Instance สำหรับติดต่อฐานข้อมูล (Singleton Pattern ป้องกัน Connection เต็ม)
 const sql = postgres(connectionString, {
-  ssl: "require", // บังคับเข้ารหัสข้อมูลเพื่อความปลอดภัยของระบบคลังร้าน DiaM
+  ssl: "require",
+  max: 1,            // serverless: 1 connection per function instance
+  idle_timeout: 20,  // คืน connection ภายใน 20s ถ้าไม่ใช้
+  connect_timeout: 10,
+  prepare: false,    // pgbouncer transaction mode ไม่รองรับ prepared statements
 });
 
 export default sql;

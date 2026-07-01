@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface Shift {
   id: number;
@@ -59,6 +59,7 @@ function addDays(d: Date, n: number): Date {
 
 export default function SchedulePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [storeId, setStoreId] = useState("");
   const [weekStart, setWeekStart] = useState(() => formatDate(getMondayOf(new Date())));
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -91,14 +92,23 @@ export default function SchedulePage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/auth/me", { cache: "no-store" }).then(r => r.json()).then(data => {
-      const user = data?.user;
+    async function init() {
+      const meData = await fetch("/api/auth/me", { cache: "no-store" }).then(r => r.json());
+      const user = meData?.user;
       if (!user) { router.push("/login"); return; }
       if (user.type === "staff") { router.push("/dashboard/movement"); return; }
-      const sid = user.storeId ? String(user.storeId) : "";
+
+      // staff มี storeId ใน token, admin ต้องดึงจาก URL หรือ API
+      let sid = searchParams.get("storeId") ?? (user.storeId ? String(user.storeId) : "");
+      if (!sid) {
+        const stores = await fetch("/api/stores", { cache: "no-store" }).then(r => r.ok ? r.json() : []);
+        sid = stores[0]?.id ? String(stores[0].id) : "";
+      }
+      if (!sid) { setLoading(false); return; }
       setStoreId(sid);
-      if (sid) fetchData(sid, weekStart);
-    });
+      fetchData(sid, weekStart);
+    }
+    init();
   }, []);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(new Date(weekStart), i));
@@ -202,7 +212,7 @@ export default function SchedulePage() {
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl border border-gray-200 bg-gray-50 text-lg">📅</div>
             <div>
-              <p className="font-bold text-gray-900 leading-tight">ตารางงาน</p>
+              <p className="font-bold text-gray-900 leading-tight">จัดกะพนักงาน</p>
               <p className="text-xs text-gray-400">Work Schedule</p>
             </div>
           </div>
