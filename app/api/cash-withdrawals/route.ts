@@ -12,9 +12,9 @@ export async function GET(request: Request) {
 
   try {
     const withdrawals = await sql`
-      SELECT cw.id, cw.amount, cw.reason, cw.employee_pin, cw.created_at, u.name AS employee_name
+      SELECT cw.id, cw.amount, cw.reason, cw.employee_pin, cw.created_at,
+             (SELECT name FROM users WHERE pin = cw.employee_pin AND store_id = ${storeId} LIMIT 1) AS employee_name
       FROM cash_withdrawals cw
-      LEFT JOIN users u ON u.pin = cw.employee_pin AND u.store_id = ${storeId}
       WHERE cw.store_id = ${storeId}
       ORDER BY cw.created_at DESC
       LIMIT 50
