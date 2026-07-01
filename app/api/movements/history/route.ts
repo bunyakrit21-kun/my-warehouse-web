@@ -17,7 +17,7 @@ export async function GET(request: Request) {
              COALESCE(u.name, m.employee_pin) as "user"
       FROM movements m
       LEFT JOIN products p ON p.id = m.product_id
-      LEFT JOIN users u ON u.pin = m.employee_pin
+      LEFT JOIN users u ON u.pin = m.employee_pin AND u.store_id = ${storeId}
       WHERE m.store_id = ${storeId}
       ORDER BY m.created_at DESC
       LIMIT 10

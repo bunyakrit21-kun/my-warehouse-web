@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useT, LangSwitcher } from "@/lib/i18n";
@@ -160,27 +160,64 @@ export default function MovementPage() {
   const isOverStocked = type === "MOVE_OUT" && currentProduct && Number(qty) > currentProduct.stock;
   const isCashMode = type === "CASH_OUT";
 
-  const handlePinChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, "");
-    if (value.length <= 4) setPin(value);
-    setEmployeeName("");
+  const pinInputRefs = useRef<Array<HTMLInputElement | null>>([null, null, null, null]);
 
-    if (value.length === 4) {
-      setVerifyingPin(true);
-      try {
-        const res = await fetch("/api/employees/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin: value }),
-        });
-        const data = await res.json();
-        setEmployeeName(res.ok ? data.name : t("pinNotFound"));
-      } catch {
-        setEmployeeName(t("pinError"));
-      } finally {
-        setVerifyingPin(false);
-      }
+  const verifyPin = async (pinToVerify: string) => {
+    setVerifyingPin(true);
+    try {
+      const res = await fetch("/api/employees/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinToVerify, storeId }),
+      });
+      const data = await res.json();
+      setEmployeeName(res.ok ? data.name : t("pinNotFound"));
+    } catch {
+      setEmployeeName(t("pinError"));
+    } finally {
+      setVerifyingPin(false);
     }
+  };
+
+  const handlePinBoxChange = (index: number, rawValue: string) => {
+    const digit = rawValue.replace(/\D/g, "").slice(-1);
+    if (!digit) return;
+
+    let newPin: string;
+    if (index > pin.length) {
+      pinInputRefs.current[pin.length]?.focus();
+      return;
+    } else if (index === pin.length) {
+      newPin = pin + digit;
+    } else {
+      newPin = pin.slice(0, index) + digit + pin.slice(index + 1);
+    }
+
+    setPin(newPin);
+    setEmployeeName("");
+    if (index < 3) pinInputRefs.current[index + 1]?.focus();
+    if (newPin.length === 4) verifyPin(newPin);
+  };
+
+  const handlePinBoxKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      if (pin.length === 0) return;
+      const newPin = pin.slice(0, -1);
+      setPin(newPin);
+      setEmployeeName("");
+      pinInputRefs.current[newPin.length]?.focus();
+    }
+  };
+
+  const handlePinPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+    if (!pasted) return;
+    setPin(pasted);
+    setEmployeeName("");
+    pinInputRefs.current[Math.min(pasted.length, 3)]?.focus();
+    if (pasted.length === 4) verifyPin(pasted);
   };
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -427,9 +464,26 @@ export default function MovementPage() {
               {/* PIN */}
               <div className="pt-3 border-t border-gray-100">
                 <label className="text-xs font-bold text-gray-700 block mb-2">{t("pinLabel")}</label>
-                <div className="flex items-center gap-4">
-                  <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={pin} onChange={handlePinChange}
-                    className="w-28 rounded-xl border border-gray-200 bg-gray-50 py-2 px-3 text-center text-lg font-black tracking-widest focus:border-black focus:bg-white outline-none transition-all" required />
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex gap-3">
+                    {[0, 1, 2, 3].map((i) => (
+                      <input
+                        key={i}
+                        ref={(el) => { pinInputRefs.current[i] = el; }}
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={pin[i] ?? ""}
+                        onChange={(e) => handlePinBoxChange(i, e.target.value)}
+                        onKeyDown={(e) => handlePinBoxKeyDown(i, e)}
+                        onClick={() => pinInputRefs.current[Math.min(pin.length, 3)]?.focus()}
+                        onPaste={handlePinPaste}
+                        className={`w-12 h-12 rounded-xl border text-center text-xl font-black outline-none transition-all
+                          ${pin[i] !== undefined ? "border-gray-900 bg-white" : "border-gray-200 bg-gray-50"}
+                          focus:border-black focus:bg-white focus:ring-2 focus:ring-black/10`}
+                      />
+                    ))}
+                  </div>
                   {verifyingPin && <span className="text-xs text-gray-400">{t("verifying")}</span>}
                   {!verifyingPin && employeeName && (
                     <span className={`text-xs font-bold px-3 py-2 rounded-xl border ${employeeName.includes("❌") ? "bg-red-50 text-red-600 border-red-100" : "bg-green-50 text-green-700 border-green-100"}`}>

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const withdrawals = await sql`
       SELECT cw.id, cw.amount, cw.reason, cw.employee_pin, cw.created_at, u.name AS employee_name
       FROM cash_withdrawals cw
-      LEFT JOIN users u ON u.pin = cw.employee_pin
+      LEFT JOIN users u ON u.pin = cw.employee_pin AND u.store_id = ${storeId}
       WHERE cw.store_id = ${storeId}
       ORDER BY cw.created_at DESC
       LIMIT 50
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const storeId = await resolveStoreId(user, bodyStoreId);
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
-    const [employee] = await sql`SELECT id FROM users WHERE pin = ${pin} AND active = true`;
+    const [employee] = await sql`SELECT id FROM users WHERE pin = ${pin} AND active = true AND store_id = ${storeId}`;
     if (!employee) {
       return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
     }
