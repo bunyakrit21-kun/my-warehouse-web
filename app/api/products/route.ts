@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
     const product = await sql.begin(async (sql) => {
       const [last] = await sql`
-        SELECT id FROM products WHERE store_id = ${storeId} ORDER BY id DESC LIMIT 1 FOR UPDATE
+        SELECT id FROM products ORDER BY id DESC LIMIT 1 FOR UPDATE
       `;
       const maxIdNum = last ? parseInt(last.id.replace(/\D/g, ""), 10) || 0 : 0;
       const nextId = `PROD${String(maxIdNum + 1).padStart(3, "0")}`;
