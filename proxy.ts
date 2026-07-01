@@ -2,12 +2,31 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400",
+};
+
 export default async function proxy(request: NextRequest) {
-  const token = request.cookies.get("token")?.value;
   const { pathname } = request.nextUrl;
+
+  // CORS preflight
+  if (request.method === "OPTIONS") {
+    return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+  }
+
+  // เพิ่ม CORS headers ให้ทุก API response
+  if (pathname.startsWith("/api/")) {
+    const response = NextResponse.next();
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
+    return response;
+  }
 
   if (!pathname.startsWith("/dashboard")) return NextResponse.next();
 
+  const token = request.cookies.get("token")?.value;
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
@@ -16,12 +35,10 @@ export default async function proxy(request: NextRequest) {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
     const { payload } = await jwtVerify(token, secret);
 
-    // พนักงาน (type: staff) เข้าได้แค่ /dashboard/movement
     if (payload.type === "staff" && !pathname.startsWith("/dashboard/movement")) {
       return NextResponse.redirect(new URL("/dashboard/movement", request.url));
     }
 
-    // admin only
     if (pathname.startsWith("/dashboard/admin") && payload.role !== "admin") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
@@ -33,5 +50,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/api/:path*"],
 };
