@@ -77,6 +77,8 @@ export default function MovementPage() {
 
   const [type, setType] = useState("MOVE_IN");
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedZone, setSelectedZone] = useState("all");
+  const [productSearch, setProductSearch] = useState("");
   const [qty, setQty] = useState<number | "">(1);
   const [note, setNote] = useState("");
 
@@ -355,9 +357,9 @@ export default function MovementPage() {
                 </>
               ) : (
                 <>
-                  {/* Product */}
+                  {/* Product — zone filter + search + grid */}
                   <div>
-                    <div className="flex justify-between items-center mb-1.5">
+                    <div className="flex justify-between items-center mb-2">
                       <label className="text-xs font-semibold text-gray-500">{t("selectProductLabel")}</label>
                       {currentProduct && (
                         <span className="text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
@@ -365,17 +367,85 @@ export default function MovementPage() {
                         </span>
                       )}
                     </div>
-                    <select
-                      value={selectedProductId}
-                      onChange={(e) => { setSelectedProductId(e.target.value); setQty(1); }}
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm font-semibold outline-none focus:border-black focus:bg-white transition-all"
-                      required
-                    >
-                      <option value="">{t("selectProductPlaceholder")}</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
-                      ))}
-                    </select>
+
+                    {/* Zone chips */}
+                    {(() => {
+                      const zones = ["all", ...Array.from(new Set(products.map(p => p.zone).filter(Boolean))).sort()];
+                      return (
+                        <div className="flex gap-1.5 flex-wrap mb-2">
+                          {zones.map(z => (
+                            <button
+                              key={z}
+                              type="button"
+                              onClick={() => { setSelectedZone(z); setProductSearch(""); }}
+                              className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all border ${
+                                selectedZone === z
+                                  ? "bg-gray-900 text-white border-gray-900"
+                                  : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                              }`}
+                            >
+                              {z === "all" ? "ทั้งหมด" : `โซน ${z}`}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Search */}
+                    <div className="relative mb-2">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="ค้นหาสินค้า..."
+                        value={productSearch}
+                        onChange={e => setProductSearch(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-black focus:bg-white transition-all"
+                      />
+                      {productSearch && (
+                        <button type="button" onClick={() => setProductSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Product list */}
+                    {(() => {
+                      const filtered = products.filter(p => {
+                        const zoneOk = selectedZone === "all" || p.zone === selectedZone;
+                        const searchOk = !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase());
+                        return zoneOk && searchOk;
+                      });
+                      return filtered.length === 0 ? (
+                        <p className="text-center text-xs text-gray-400 py-4">ไม่พบสินค้า</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto pr-0.5">
+                          {filtered.map(p => {
+                            const isSelected = selectedProductId === p.id;
+                            const lowStock = p.stock <= p.minStock;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => { setSelectedProductId(p.id); setQty(1); }}
+                                className={`text-left rounded-xl border px-3 py-2 transition-all ${
+                                  isSelected
+                                    ? "border-gray-900 bg-gray-900 text-white"
+                                    : "border-gray-200 bg-white hover:border-gray-400"
+                                }`}
+                              >
+                                <p className={`text-xs font-semibold leading-tight truncate ${isSelected ? "text-white" : "text-gray-800"}`}>{p.name}</p>
+                                <p className={`text-[11px] mt-0.5 ${isSelected ? "text-gray-300" : lowStock ? "text-red-500 font-semibold" : "text-gray-400"}`}>
+                                  {p.stock} {p.unit}
+                                  {p.zone ? <span className={`ml-1.5 ${isSelected ? "text-gray-400" : "text-gray-300"}`}>· {p.zone}</span> : null}
+                                </p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Qty */}
