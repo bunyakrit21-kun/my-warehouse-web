@@ -35,6 +35,7 @@ export default function StoresPage() {
   const [newName, setNewName] = useState("");
   const [newPin, setNewPin] = useState("");
   const [newRole, setNewRole] = useState("staff");
+  const [customRole, setCustomRole] = useState("");
   const [addingMember, setAddingMember] = useState(false);
   const [memberError, setMemberError] = useState("");
 
@@ -103,16 +104,18 @@ export default function StoresPage() {
     setMemberError("");
     if (!selectedStoreId) return;
     if (!/^\d{4}$/.test(newPin)) return setMemberError(t("alertPinRequired"));
+    const roleToSave = newRole === "other" ? customRole.trim() : newRole;
+    if (!roleToSave) return setMemberError("กรุณาระบุตำแหน่ง");
     setAddingMember(true);
     const res = await fetch("/api/admin/members", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, pin: newPin, role: newRole, storeId: selectedStoreId }),
+      body: JSON.stringify({ name: newName, pin: newPin, role: roleToSave, storeId: selectedStoreId }),
     });
     const data = await res.json();
     setAddingMember(false);
     if (!res.ok) return setMemberError(data.error);
-    setNewName(""); setNewPin(""); setNewRole("staff");
+    setNewName(""); setNewPin(""); setNewRole("staff"); setCustomRole("");
     fetchMembers(selectedStoreId);
   };
 
@@ -235,29 +238,36 @@ export default function StoresPage() {
               </div>
 
               {/* Add member form */}
-              <form onSubmit={handleAddMember} className="grid grid-cols-2 gap-2 mb-5">
+              <form onSubmit={handleAddMember} className="flex flex-col gap-2 mb-5">
                 <input type="text" placeholder={t("memberNamePH")} value={newName} onChange={e => setNewName(e.target.value)}
-                  className="col-span-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black" required />
-                <input
-                  list="role-suggestions"
-                  value={newRole}
-                  onChange={e => setNewRole(e.target.value)}
-                  placeholder={t("rolePlaceholder")}
-                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all"
-                />
-                <datalist id="role-suggestions">
-                  <option value="staff" />
-                  <option value="manager" />
-                  <option value="kitchen" />
-                  <option value="cashier" />
-                  <option value="delivery" />
-                  <option value="cleaning" />
-                </datalist>
-                <input type="password" inputMode="numeric" maxLength={4} placeholder={t("pin4")}
-                  value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, ""))}
-                  className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-center tracking-widest outline-none focus:border-black" required />
+                  className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" required />
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={newRole}
+                    onChange={e => { setNewRole(e.target.value); setCustomRole(""); }}
+                    className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all"
+                  >
+                    <option value="staff">{t("roleStaff")}</option>
+                    <option value="manager">{t("roleManager")}</option>
+                    <option value="other">อื่นๆ...</option>
+                  </select>
+                  <input type="password" inputMode="numeric" maxLength={4} placeholder={t("pin4")}
+                    value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, ""))}
+                    className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-center tracking-widest outline-none focus:border-black focus:bg-white transition-all" required />
+                </div>
+                {newRole === "other" && (
+                  <input
+                    type="text"
+                    placeholder="ระบุตำแหน่ง เช่น ครัว, แคชเชียร์, ส่งของ..."
+                    value={customRole}
+                    onChange={e => setCustomRole(e.target.value)}
+                    autoFocus
+                    className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all"
+                    required
+                  />
+                )}
                 <button type="submit" disabled={addingMember}
-                  className="col-span-2 rounded-xl bg-black text-white text-sm font-semibold py-2.5 hover:bg-gray-800 disabled:bg-gray-300 transition-all">
+                  className="rounded-xl bg-black text-white text-sm font-semibold py-2.5 hover:bg-gray-800 disabled:bg-gray-300 transition-all">
                   {addingMember ? t("addingMemberStatus") : `+ ${t("addMemberBtn")}`}
                 </button>
               </form>
