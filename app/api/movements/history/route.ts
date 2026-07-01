@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       SELECT m.id, TO_CHAR(m.created_at, 'HH24:MI น.') as time, m.type,
              p.name as "itemName", m.qty, m.note,
              COALESCE(
-               (SELECT name FROM users WHERE pin = m.employee_pin AND store_id = ${storeId} LIMIT 1),
+               (SELECT name FROM users WHERE pin = m.employee_pin AND store_id = ${storeId} ORDER BY active DESC LIMIT 1),
                m.employee_pin
              ) as "user"
       FROM movements m

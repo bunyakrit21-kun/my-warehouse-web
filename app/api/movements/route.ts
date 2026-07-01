@@ -23,7 +23,7 @@ export async function GET(request: Request) {
         m.employee_pin,
         p.name AS product_name,
         p.unit,
-        (SELECT name FROM users WHERE pin = m.employee_pin AND store_id = ${storeId} LIMIT 1) AS employee_name
+        (SELECT name FROM users WHERE pin = m.employee_pin AND store_id = ${storeId} ORDER BY active DESC LIMIT 1) AS employee_name
       FROM movements m
       LEFT JOIN products p ON p.id = m.product_id
       WHERE m.store_id = ${storeId}
