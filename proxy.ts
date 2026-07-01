@@ -35,12 +35,21 @@ export default async function proxy(request: NextRequest) {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
     const { payload } = await jwtVerify(token, secret);
 
-    const staffOnly = "/dashboard/movement";
-    if (payload.type === "staff" && !pathname.startsWith(staffOnly)) {
-      return NextResponse.redirect(new URL(staffOnly, request.url));
+    if (payload.type === "staff") {
+      if (payload.role === "manager") {
+        // ผู้จัดการเข้าได้ทุกหน้า ยกเว้น /dashboard/stores (admin only)
+        if (pathname.startsWith("/dashboard/stores")) {
+          return NextResponse.redirect(new URL("/dashboard/movement", request.url));
+        }
+      } else {
+        // พนักงานทั่วไป → movement เท่านั้น
+        if (!pathname.startsWith("/dashboard/movement")) {
+          return NextResponse.redirect(new URL("/dashboard/movement", request.url));
+        }
+      }
     }
 
-    if (pathname.startsWith("/dashboard/admin") && payload.role !== "admin") {
+    if (pathname.startsWith("/dashboard/stores") && payload.role !== "admin") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useT, LangSwitcher } from "@/lib/i18n";
+import PinBoxes from "@/components/PinBoxes";
 
 interface Store {
   id: number;
@@ -33,7 +34,7 @@ export default function StoresPage() {
   const [storeMsg, setStoreMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const [newName, setNewName] = useState("");
-  const [newPin, setNewPin] = useState("");
+  const [newPin, setNewPin] = useState(["", "", "", ""]);
   const [newRole, setNewRole] = useState("staff");
   const [customRole, setCustomRole] = useState("");
   const [addingMember, setAddingMember] = useState(false);
@@ -41,7 +42,7 @@ export default function StoresPage() {
 
   // PIN reset inline state: memberId → new PIN being typed
   const [pinResetId, setPinResetId] = useState<number | null>(null);
-  const [pinResetValue, setPinResetValue] = useState("");
+  const [pinResetValue, setPinResetValue] = useState(["", "", "", ""]);
   const [pinResetMsg, setPinResetMsg] = useState<{ id: number; type: "ok" | "err"; text: string } | null>(null);
   const [savingPin, setSavingPin] = useState(false);
 
@@ -103,19 +104,19 @@ export default function StoresPage() {
     e.preventDefault();
     setMemberError("");
     if (!selectedStoreId) return;
-    if (!/^\d{4}$/.test(newPin)) return setMemberError(t("alertPinRequired"));
+    if (newPin.join("").length !== 4) return setMemberError(t("alertPinRequired"));
     const roleToSave = newRole === "other" ? customRole.trim() : newRole;
     if (!roleToSave) return setMemberError("กรุณาระบุตำแหน่ง");
     setAddingMember(true);
     const res = await fetch("/api/admin/members", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, pin: newPin, role: roleToSave, storeId: selectedStoreId }),
+      body: JSON.stringify({ name: newName, pin: newPin.join(""), role: roleToSave, storeId: selectedStoreId }),
     });
     const data = await res.json();
     setAddingMember(false);
     if (!res.ok) return setMemberError(data.error);
-    setNewName(""); setNewPin(""); setNewRole("staff"); setCustomRole("");
+    setNewName(""); setNewPin(["", "", "", ""]); setNewRole("staff"); setCustomRole("");
     fetchMembers(selectedStoreId);
   };
 
@@ -126,7 +127,7 @@ export default function StoresPage() {
   };
 
   const handleResetPin = async (id: number) => {
-    if (!/^\d{4}$/.test(pinResetValue)) {
+    if (pinResetValue.join("").length !== 4) {
       setPinResetMsg({ id, type: "err", text: t("alertPinRequired") });
       return;
     }
@@ -134,14 +135,14 @@ export default function StoresPage() {
     const res = await fetch(`/api/admin/members/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: pinResetValue }),
+      body: JSON.stringify({ pin: pinResetValue.join("") }),
     });
     const data = await res.json();
     setSavingPin(false);
     if (res.ok) {
       setPinResetMsg({ id, type: "ok", text: t("pinChanged") });
       setPinResetId(null);
-      setPinResetValue("");
+      setPinResetValue(["", "", "", ""]);
     } else {
       setPinResetMsg({ id, type: "err", text: data.error ?? t("error") });
     }
@@ -251,9 +252,9 @@ export default function StoresPage() {
                     <option value="manager">{t("roleManager")}</option>
                     <option value="other">อื่นๆ...</option>
                   </select>
-                  <input type="password" inputMode="numeric" maxLength={4} placeholder={t("pin4")}
-                    value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, ""))}
-                    className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-center tracking-widest outline-none focus:border-black focus:bg-white transition-all" required />
+                  <div className="flex items-center justify-center">
+                    <PinBoxes value={newPin} onChange={setNewPin} size="sm" />
+                  </div>
                 </div>
                 {newRole === "other" && (
                   <input
@@ -296,7 +297,7 @@ export default function StoresPage() {
                           <button
                             onClick={() => {
                               setPinResetId(pinResetId === m.id ? null : m.id);
-                              setPinResetValue("");
+                              setPinResetValue(["", "", "", ""]);
                               setPinResetMsg(null);
                             }}
                             className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-100 bg-blue-50 px-2.5 py-1 rounded-lg transition-all">
@@ -311,29 +312,23 @@ export default function StoresPage() {
 
                       {/* Inline PIN reset */}
                       {pinResetId === m.id && (
-                        <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2">
-                          <input
-                            type="password"
-                            inputMode="numeric"
-                            maxLength={4}
-                            placeholder="0000"
-                            value={pinResetValue}
-                            onChange={e => { setPinResetValue(e.target.value.replace(/\D/g, "")); setPinResetMsg(null); }}
-                            className="w-24 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-center tracking-widest outline-none focus:border-black"
-                            autoFocus
-                          />
-                          <button
-                            onClick={() => handleResetPin(m.id)}
-                            disabled={savingPin || pinResetValue.length !== 4}
-                            className="rounded-lg bg-black text-white text-xs font-semibold px-3 py-1.5 hover:bg-gray-800 disabled:bg-gray-300 transition-all">
-                            {savingPin ? "..." : t("confirm")}
-                          </button>
-                          <button onClick={() => { setPinResetId(null); setPinResetMsg(null); }}
-                            className="text-xs text-gray-400 hover:text-gray-600">{t("cancel")}</button>
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-gray-500 mb-2 text-center">PIN ใหม่</p>
+                          <PinBoxes value={pinResetValue} onChange={v => { setPinResetValue(v); setPinResetMsg(null); }} autoFocus size="sm" />
+                          <div className="flex items-center justify-center gap-2 mt-3">
+                            <button
+                              onClick={() => handleResetPin(m.id)}
+                              disabled={savingPin || pinResetValue.join("").length !== 4}
+                              className="rounded-lg bg-black text-white text-xs font-semibold px-4 py-1.5 hover:bg-gray-800 disabled:bg-gray-300 transition-all">
+                              {savingPin ? "..." : t("confirm")}
+                            </button>
+                            <button onClick={() => { setPinResetId(null); setPinResetMsg(null); }}
+                              className="text-xs text-gray-400 hover:text-gray-600">{t("cancel")}</button>
+                          </div>
                           {pinResetMsg?.id === m.id && (
-                            <span className={`text-xs font-semibold ${pinResetMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
+                            <p className={`text-xs font-semibold text-center mt-1 ${pinResetMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
                               {pinResetMsg.text}
-                            </span>
+                            </p>
                           )}
                         </div>
                       )}

@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useT, LangSwitcher } from "@/lib/i18n";
+import PinBoxes from "@/components/PinBoxes";
 
 interface Product {
   id: string;
@@ -41,7 +42,6 @@ export default function InventoryPage() {
   const [authMode, setAuthMode] = useState("");
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [authPin, setAuthPin] = useState("");
   const [authError, setAuthError] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -55,8 +55,9 @@ export default function InventoryPage() {
 
   const [isFresh, setIsFresh] = useState(false);
   const [parLevel, setParLevel] = useState("");
-  const [formCreatorPin, setFormCreatorPin] = useState("");
+  const [formCreatorPin, setFormCreatorPin] = useState(["", "", "", ""]);
   const [formPinError, setFormPinError] = useState("");
+  const [authPin, setAuthPin] = useState(["", "", "", ""]);
   const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
 
   const fetchProductsFromDatabase = async (sid: string) => {
@@ -140,15 +141,15 @@ export default function InventoryPage() {
     setEditingId(null); setName(""); setStock(""); setMinStock(""); setUnit(t("defaultUnit"));
     setZone(zonesList[0] || ""); setCategory(categoriesList[0] || "");
     setImageFile(""); setIsFresh(false); setParLevel("");
-    setFormCreatorPin(""); setFormPinError(""); setIsFormModalOpen(true);
+    setFormCreatorPin(["", "", "", ""]); setFormPinError(""); setIsFormModalOpen(true);
   };
 
   const openEditModal = (product: Product) => {
-    setSelectedProduct(product); setAuthPin(""); setAuthError(""); setAuthMode("EDIT"); setIsAuthModalOpen(true);
+    setSelectedProduct(product); setAuthPin(["", "", "", ""]); setAuthError(""); setAuthMode("EDIT"); setIsAuthModalOpen(true);
   };
 
   const openDeleteModal = (product: Product) => {
-    setSelectedProduct(product); setAuthPin(""); setAuthError(""); setAuthMode("DELETE"); setIsAuthModalOpen(true);
+    setSelectedProduct(product); setAuthPin(["", "", "", ""]); setAuthError(""); setAuthMode("DELETE"); setIsAuthModalOpen(true);
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -158,7 +159,7 @@ export default function InventoryPage() {
     const verifyRes = await fetch("/api/employees/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: formCreatorPin }),
+      body: JSON.stringify({ pin: formCreatorPin.join("") }),
     });
     if (!verifyRes.ok) {
       setFormPinError(t("pinInvalid"));
@@ -221,7 +222,7 @@ export default function InventoryPage() {
     const verifyRes = await fetch("/api/employees/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: authPin }),
+      body: JSON.stringify({ pin: authPin.join("") }),
     });
 
     if (verifyRes.ok) {
@@ -249,7 +250,7 @@ export default function InventoryPage() {
         setImageFile(selectedProduct.image);
         setIsFresh(selectedProduct.isFresh ?? false);
         setParLevel(selectedProduct.parLevel !== null ? String(selectedProduct.parLevel) : "");
-        setFormCreatorPin("");
+        setFormCreatorPin(["", "", "", ""]);
         setFormPinError("");
         setIsFormModalOpen(true);
       }
@@ -521,8 +522,8 @@ export default function InventoryPage() {
               </div>
 
               <div className="pt-4 border-t border-dashed border-gray-200 bg-red-50/30 p-4 rounded-2xl border border-red-100">
-                <label className="text-xs font-bold text-red-600 block mb-1.5">{t("pinConfirmLabel")}</label>
-                <input type="password" maxLength={4} inputMode="numeric" placeholder={t("pinConfirmPlaceholder")} value={formCreatorPin} onChange={(e) => { setFormCreatorPin(e.target.value.replace(/\D/g, "")); setFormPinError(""); }} className="w-full rounded-xl border border-red-200 bg-white py-2.5 px-4 text-center font-sans font-bold tracking-widest text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:tracking-normal placeholder:font-normal placeholder:text-gray-400" required />
+                <label className="text-xs font-bold text-red-600 block mb-3 text-center">{t("pinConfirmLabel")}</label>
+                <PinBoxes value={formCreatorPin} onChange={v => { setFormCreatorPin(v); setFormPinError(""); }} error={!!formPinError} />
                 {formPinError && <p className="text-xs text-red-600 font-bold mt-2 text-center">{formPinError}</p>}
               </div>
 
@@ -546,10 +547,10 @@ export default function InventoryPage() {
             </div>
             <h3 className="text-base font-bold text-gray-900">{t("authModalTitle")}</h3>
             <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{t("authModalDesc")}</p>
-            <form onSubmit={handleAuthVerification} className="mt-4 space-y-3">
-              <input type="password" maxLength={4} placeholder="••••" inputMode="numeric" value={authPin} onChange={(e) => setAuthPin(e.target.value.replace(/\D/g, ""))} className="w-28 bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-center text-sm font-bold tracking-widest focus:bg-white focus:border-black outline-none transition-all font-sans" required />
+            <form onSubmit={handleAuthVerification} className="mt-4 space-y-4">
+              <PinBoxes value={authPin} onChange={v => { setAuthPin(v); setAuthError(""); }} error={!!authError} autoFocus />
               {authError && <p className="text-xs text-red-600 font-bold bg-red-50 py-1.5 px-2 rounded-xl border border-red-100">{authError}</p>}
-              <div className="flex gap-2 justify-center pt-3 text-xs font-bold">
+              <div className="flex gap-2 justify-center pt-1 text-xs font-bold">
                 <button type="button" onClick={() => setIsAuthModalOpen(false)} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-gray-400 hover:border-black">{t("cancel")}</button>
                 <button type="submit" className="rounded-xl bg-red-600 text-white px-4 py-2 hover:bg-red-700 shadow-sm">{t("confirmPin")}</button>
               </div>
