@@ -50,7 +50,7 @@ function getMondayOf(date: Date): Date {
 }
 
 function formatDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function addDays(d: Date, n: number): Date {
@@ -287,7 +287,12 @@ function ScheduleContent() {
         <header className="border-b border-gray-200 bg-white sticky top-0 z-20">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl border border-gray-200 bg-gray-50 text-lg">📅</div>
+              <div className="grid h-10 w-10 place-items-center rounded-xl border border-gray-200 bg-gray-50 text-center leading-none">
+                <span>
+                  <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-wider">{new Date(today + "T12:00:00").toLocaleDateString("en-US", { month: "short" }).toUpperCase()}</span>
+                  <span className="block text-sm font-black text-gray-900 mt-0.5">{Number(today.slice(8, 10))}</span>
+                </span>
+              </div>
               <div>
                 <p className="font-bold text-gray-900 leading-tight">ตารางเข้างาน</p>
                 <p className="text-xs text-gray-400">Work Schedule</p>
