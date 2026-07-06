@@ -258,9 +258,14 @@ export default function InventoryPage() {
         setStock(String(selectedProduct.stock));
         setMinStock(String(selectedProduct.minStock));
         setUnit(selectedProduct.unit);
-        setImageFile(selectedProduct.image);
         setIsFresh(selectedProduct.isFresh ?? false);
         setParLevel(selectedProduct.parLevel !== null ? String(selectedProduct.parLevel) : "");
+        // selectedProduct.image here is only the small list thumbnail — fetch the
+        // full-resolution photo so re-saving without changing it doesn't downgrade it.
+        setImageFile("");
+        fetch(`/api/products/${selectedProduct.id}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((full) => { if (full?.image) setImageFile(full.image); });
         setFormCreatorPin(["", "", "", ""]);
         setFormPinError("");
         setIsFormModalOpen(true);

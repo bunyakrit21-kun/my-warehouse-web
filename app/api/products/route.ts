@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
+import { createThumbnail } from "@/lib/image-thumbnail";
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -11,12 +12,16 @@ export async function GET(request: Request) {
   if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
   try {
+    // Return image_thumbnail (a few KB) here, not the full-size image column
+    // (often 50-300KB) — list responses shouldn't ship N * 100KB of JSON.
+    // Full-resolution photos are only needed when editing a single product.
     const products = await sql`
       SELECT
         id, name, category, zone,
         stock::int as stock,
         min_stock::int as "minStock",
-        unit, image,
+        unit,
+        COALESCE(image_thumbnail, image) as image,
         COALESCE(is_fresh, false) as "isFresh",
         par_level as "parLevel",
         TO_CHAR(created_at, 'DD/MM/YYYY, HH24:MI') as "createdAt"
@@ -42,6 +47,8 @@ export async function POST(request: Request) {
     const storeId = await resolveStoreId(user, bodyStoreId);
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
+    const imageThumbnail = image ? await createThumbnail(image) : "";
+
     const product = await sql.begin(async (sql) => {
       const [last] = await sql`
         SELECT id FROM products ORDER BY id DESC LIMIT 1 FOR UPDATE
@@ -50,8 +57,8 @@ export async function POST(request: Request) {
       const nextId = `PROD${String(maxIdNum + 1).padStart(3, "0")}`;
 
       const [inserted] = await sql`
-        INSERT INTO products (id, name, category, zone, stock, min_stock, unit, image, store_id, is_fresh, par_level)
-        VALUES (${nextId}, ${name}, ${category}, ${zone}, ${stock}, ${minStock}, ${unit}, ${image ?? ""}, ${storeId}, ${isFresh ?? false}, ${parLevel ?? null})
+        INSERT INTO products (id, name, category, zone, stock, min_stock, unit, image, image_thumbnail, store_id, is_fresh, par_level)
+        VALUES (${nextId}, ${name}, ${category}, ${zone}, ${stock}, ${minStock}, ${unit}, ${image ?? ""}, ${imageThumbnail}, ${storeId}, ${isFresh ?? false}, ${parLevel ?? null})
         RETURNING id, name
       `;
       return inserted;
