@@ -37,14 +37,15 @@ export default async function proxy(request: NextRequest) {
 
     if (payload.type === "staff") {
       if (payload.role === "manager") {
-        // ผู้จัดการเข้าได้ทุกหน้า ยกเว้น /dashboard/stores (admin only)
-        if (pathname.startsWith("/dashboard/stores")) {
+        // ผู้จัดการเข้าได้ทุกหน้า ยกเว้น /dashboard/stores และ /dashboard/accounting (เจ้าของร้าน/admin เท่านั้น)
+        if (pathname.startsWith("/dashboard/stores") || pathname.startsWith("/dashboard/accounting")) {
           return NextResponse.redirect(new URL("/dashboard/movement", request.url));
         }
       } else {
-        // พนักงานทั่วไป → movement + fresh-check เท่านั้น
+        // พนักงานทั่วไป → movement + fresh-check เท่านั้น (ประวัติปิดยอดเป็นของผู้จัดการ/แอดมิน)
         const staffAllowed = ["/dashboard/movement", "/dashboard/fresh-check", "/dashboard/cash-closing"];
-        if (!staffAllowed.some(p => pathname.startsWith(p))) {
+        const isManagerOnly = pathname.startsWith("/dashboard/cash-closing/history");
+        if (isManagerOnly || !staffAllowed.some(p => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL("/dashboard/movement", request.url));
         }
       }

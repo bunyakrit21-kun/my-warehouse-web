@@ -8,6 +8,7 @@ const MAX_SIGNUPS_PER_IP = 5;
 const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
 const VALID_LANGUAGES = ["th", "en", "zh-TW", "vi"];
 const DEFAULT_LANGUAGE = "th";
+const DEFAULT_EXPENSE_CATEGORIES = ["ค่าเช่า", "ค่าน้ำค่าไฟ", "เงินเดือนพนักงาน", "ค่าวัตถุดิบ", "อื่นๆ"];
 
 export async function POST(request: Request) {
   try {
@@ -54,6 +55,22 @@ export async function POST(request: Request) {
         VALUES (${user.id}, ${storeName}, ${businessType}, ${phone}, ${startTime}, ${endTime}, ${storeCountry}, ${storeLanguage})
         RETURNING id, name
       `;
+
+      // บัญชี "เงินสด" เริ่มต้น + หมวดหมู่ระบบ ให้ระบบบัญชี (spec-07) มีที่ผูกได้ตั้งแต่วันแรก
+      await sql`
+        INSERT INTO accounts (store_id, name, account_type, is_default_cash)
+        VALUES (${store.id}, 'เงินสด', 'cash', true)
+      `;
+      await sql`
+        INSERT INTO transaction_categories (store_id, name, type, is_system)
+        VALUES (${store.id}, 'ยอดขายประจำวัน', 'income', true)
+      `;
+      for (const catName of DEFAULT_EXPENSE_CATEGORIES) {
+        await sql`
+          INSERT INTO transaction_categories (store_id, name, type, is_system)
+          VALUES (${store.id}, ${catName}, 'expense', true)
+        `;
+      }
 
       return { user, store };
     });

@@ -74,6 +74,7 @@ function ScheduleContent() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [closedSet, setClosedSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   // picker modal
@@ -91,12 +92,21 @@ function ScheduleContent() {
   const fetchData = useCallback(async (sid: string, ws: string, days = 7) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/schedule?storeId=${sid}&weekStart=${ws}&days=${days}`, { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-      setShifts(data.shifts);
-      setEntries(data.entries);
-      setEmployees(data.employees);
+      const to = formatDate(addDays(new Date(ws), days - 1));
+      const [res, closedRes] = await Promise.all([
+        fetch(`/api/schedule?storeId=${sid}&weekStart=${ws}&days=${days}`, { cache: "no-store" }),
+        fetch(`/api/cash-closings/closed-dates?storeId=${sid}&from=${ws}&to=${to}`, { cache: "no-store" }),
+      ]);
+      if (res.ok) {
+        const data = await res.json();
+        setShifts(data.shifts);
+        setEntries(data.entries);
+        setEmployees(data.employees);
+      }
+      if (closedRes.ok) {
+        const closed: { shiftId: number; businessDate: string }[] = await closedRes.json();
+        setClosedSet(new Set(closed.map(c => `${c.shiftId}_${c.businessDate.slice(0, 10)}`)));
+      }
     } finally {
       setLoading(false);
     }
@@ -476,12 +486,18 @@ function ScheduleContent() {
                               const dateStr = formatDate(d);
                               const cellEntries = entriesOn(dateStr, shift.id);
                               const isToday = dateStr === today;
+                              const isClosed = closedSet.has(`${shift.id}_${dateStr}`);
                               return (
                                 <td key={di} className={`px-2 py-2 align-top ${isToday ? "bg-black/5" : ""}`}>
                                   <div
                                     className="min-h-[60px] rounded-xl p-1.5 cursor-pointer group relative"
                                     onClick={() => setModal({ date: dateStr, shift })}
                                   >
+                                    {isClosed && (
+                                      <span title="ปิดยอดแล้ว" className="absolute top-1 right-1 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-1.5 py-0.5 print:hidden">
+                                        ✓ ปิดยอดแล้ว
+                                      </span>
+                                    )}
                                     {/* Employee chips */}
                                     <div className="flex flex-wrap gap-1 mb-1">
                                       {cellEntries.map(e => (

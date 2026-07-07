@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import PinBoxes from "@/components/PinBoxes";
 import { formatCurrency } from "@/lib/currency";
 import { DEFAULT_COUNTRY_CODE } from "@/lib/countries";
@@ -170,7 +171,7 @@ function CashClosingContent() {
               <path d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <div>
+          <div className="flex-1">
             <p className="text-base font-semibold text-gray-900">ปิดยอดเงินสด</p>
             <p className="text-xs text-gray-400">
               {selectedShift
@@ -178,6 +179,12 @@ function CashClosingContent() {
                 : "ยังไม่ระบุกะ"}
             </p>
           </div>
+          <Link
+            href={`/dashboard/cash-closing/history${storeId ? `?storeId=${storeId}` : ""}`}
+            className="shrink-0 text-xs font-semibold text-gray-500 hover:text-black transition-colors"
+          >
+            ดูประวัติ
+          </Link>
         </div>
       </div>
 

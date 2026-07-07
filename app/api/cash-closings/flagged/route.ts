@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 
+// GET — unacknowledged cash closings that need a manager's attention:
+// either the confirming PIN's user wasn't on the schedule, or the count didn't match expected.
 export async function GET(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,23 +17,17 @@ export async function GET(request: Request) {
 
   try {
     const rows = await sql`
-      SELECT cc.id, cc.business_date as "businessDate", cc.opening_float as "openingFloat",
-             cc.cash_sales as "cashSales", cc.withdrawals_total as "withdrawalsTotal",
-             cc.expected_amount as "expectedAmount", cc.counted_amount as "countedAmount",
-             cc.difference, cc.count_method as "countMethod", cc.discrepancy_reason as "discrepancyReason",
-             cc.discrepancy_note as "discrepancyNote", cc.created_at as "createdAt",
-             cc.schedule_mismatch as "scheduleMismatch",
-             cc.acknowledged_at as "acknowledgedAt", cc.edit_history as "editHistory",
-             s.id as "shiftId", s.name as "shiftName",
-             u.name as "closedByName",
-             ack.name as "acknowledgedByName"
+      SELECT cc.id, cc.business_date as "businessDate", cc.difference,
+             cc.schedule_mismatch as "scheduleMismatch", cc.created_at as "createdAt",
+             s.name as "shiftName",
+             u.name as "closedByName"
       FROM cash_closings cc
       LEFT JOIN shifts s ON s.id = cc.shift_id
       LEFT JOIN users u ON u.id = cc.closed_by_user_id
-      LEFT JOIN users ack ON ack.id = cc.acknowledged_by_user_id
-      WHERE cc.store_id = ${storeId}
+      WHERE cc.store_id = ${storeId} AND cc.acknowledged_at IS NULL
+        AND (cc.schedule_mismatch = true OR cc.difference != 0)
       ORDER BY cc.created_at DESC
-      LIMIT 50
+      LIMIT 20
     `;
     return NextResponse.json(rows);
   } catch {

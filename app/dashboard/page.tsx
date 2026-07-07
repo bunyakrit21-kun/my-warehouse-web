@@ -4,12 +4,23 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useT, LangSwitcher } from "@/lib/i18n";
+import { formatCurrency } from "@/lib/currency";
+import { DEFAULT_COUNTRY_CODE } from "@/lib/countries";
 
 interface Product { id: string; name: string; stock: number; minStock: number; unit: string; }
-interface Store { id: number; name: string; business_type: string; phone: string; my_role: string; }
+interface Store { id: number; name: string; business_type: string; phone: string; my_role: string; country: string | null; }
 interface User { id: number; name: string; email: string; role: string; }
 interface Shift { id: number; name: string; start_time: string; end_time: string | null; color: string; }
 interface ScheduleEntry { id: number; work_date: string; shift_id: number; user_id: number; user_name: string; }
+interface FlaggedClosing {
+  id: number;
+  businessDate: string;
+  difference: string;
+  scheduleMismatch: boolean;
+  createdAt: string;
+  shiftName: string | null;
+  closedByName: string | null;
+}
 
 const SHIFT_DOT_COLOR: Record<string, string> = {
   blue: "bg-blue-500", green: "bg-green-500", orange: "bg-orange-500", purple: "bg-purple-500", red: "bg-red-500",
@@ -28,11 +39,31 @@ export default function DashboardPage() {
   const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
   const [todayEntries, setTodayEntries] = useState<ScheduleEntry[]>([]);
   const [todayDateStr, setTodayDateStr] = useState("");
+  const [flaggedClosings, setFlaggedClosings] = useState<FlaggedClosing[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchProductsForStore = async (sid: number) => {
     const data = await fetch(`/api/products?storeId=${sid}`).then(r => r.ok ? r.json() : []);
     setProducts(data);
+  };
+
+  const fetchFlaggedClosingsForStore = async (sid: number) => {
+    const data = await fetch(`/api/cash-closings/flagged?storeId=${sid}`).then(r => r.ok ? r.json() : []);
+    setFlaggedClosings(data);
+  };
+
+  const acknowledgeClosing = async (id: number) => {
+    const removed = flaggedClosings.find(c => c.id === id);
+    setFlaggedClosings(prev => prev.filter(c => c.id !== id));
+    const res = await fetch(`/api/cash-closings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acknowledge: true }),
+    });
+    if (!res.ok && removed) {
+      // Revert the optimistic removal so a failed acknowledge doesn't silently vanish from view.
+      setFlaggedClosings(prev => [...prev, removed].sort((a, b) => b.id - a.id));
+    }
   };
 
   const fetchTodayScheduleForStore = async (sid: number) => {
@@ -56,7 +87,7 @@ export default function DashboardPage() {
       setStores(storesData);
       const first: Store | null = storesData[0] ?? null;
       setCurrentStore(first);
-      if (first) await Promise.all([fetchProductsForStore(first.id), fetchTodayScheduleForStore(first.id)]);
+      if (first) await Promise.all([fetchProductsForStore(first.id), fetchTodayScheduleForStore(first.id), fetchFlaggedClosingsForStore(first.id)]);
       setMounted(true);
     }
     init();
@@ -157,6 +188,18 @@ export default function DashboardPage() {
         </svg>
       ),
     },
+    {
+      key: "accounting",
+      label: t("quickAccounting"),
+      href: `/dashboard/accounting${currentStore ? `?storeId=${currentStore.id}` : ""}`,
+      box: "bg-indigo-50 border-indigo-100",
+      icon: (
+        <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v8m-4-4h8" />
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -216,7 +259,7 @@ export default function DashboardPage() {
                     {stores.map(store => (
                       <button
                         key={store.id}
-                        onClick={() => { setCurrentStore(store); setDropdownOpen(false); fetchProductsForStore(store.id); fetchTodayScheduleForStore(store.id); }}
+                        onClick={() => { setCurrentStore(store); setDropdownOpen(false); fetchProductsForStore(store.id); fetchTodayScheduleForStore(store.id); fetchFlaggedClosingsForStore(store.id); }}
                         className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-xl mb-1 transition-all ${currentStore?.id === store.id ? "bg-black text-white" : "hover:bg-gray-50"}`}
                       >
                         <div>
@@ -339,6 +382,51 @@ export default function DashboardPage() {
             </div>
           </Link>
 
+        </div>
+
+        {/* การ์ด รายการปิดยอดที่ต้องตรวจสอบ */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm mb-5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t("cashClosingAlertsTitle")}</p>
+            {flaggedClosings.length > 0 && (
+              <span className="inline-flex rounded-full bg-red-50 border border-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                {t("cashClosingAlertBadge")} {flaggedClosings.length}
+              </span>
+            )}
+          </div>
+          {flaggedClosings.length === 0 ? (
+            <p className="text-xs text-gray-400 mt-3">{t("noCashClosingAlerts")}</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {flaggedClosings.map(c => (
+                <li key={c.id} className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-800 truncate">
+                      {c.businessDate.slice(0, 10)} · {c.shiftName ?? "-"} · {c.closedByName ?? "-"}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      {c.scheduleMismatch && (
+                        <span className="inline-flex rounded-full bg-orange-50 border border-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-600">
+                          {t("scheduleMismatchLabel")}
+                        </span>
+                      )}
+                      {Number(c.difference) !== 0 && (
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${Number(c.difference) > 0 ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-red-50 border-red-100 text-red-600"}`}>
+                          {t("discrepancyAmountLabel")} {Number(c.difference) > 0 ? "+" : "-"}{formatCurrency(Math.abs(Number(c.difference)), currentStore?.country ?? DEFAULT_COUNTRY_CODE)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => acknowledgeClosing(c.id)}
+                    className="shrink-0 rounded-lg bg-white border border-gray-200 px-3 py-1.5 text-[11px] font-bold text-gray-600 hover:border-black transition-all"
+                  >
+                    {t("acknowledgeBtn")}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* การ์ด ตารางงาน */}
