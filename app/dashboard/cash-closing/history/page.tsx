@@ -140,6 +140,21 @@ function CashClosingHistoryContent() {
     if (storeId) await load(storeId);
   };
 
+  const acknowledgeRow = async () => {
+    if (!editRow || saving) return;
+    setSaving(true);
+    const res = await fetch(`/api/cash-closings/${editRow.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acknowledge: true }),
+    });
+    setSaving(false);
+    if (!res.ok) return setEditError(t("error"));
+
+    setEditRow(null);
+    if (storeId) await load(storeId);
+  };
+
   if (!mounted) return null;
 
   const shiftStats = summarizeByShift(rows);
@@ -273,7 +288,14 @@ function CashClosingHistoryContent() {
 
             {editError && <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 mt-4">{editError}</p>}
 
-            <div className="flex gap-2 mt-6">
+            {!editRow.acknowledgedAt && (editRow.scheduleMismatch || Number(editRow.difference) !== 0) && (
+              <button type="button" onClick={acknowledgeRow} disabled={saving}
+                className="w-full mt-4 rounded-xl border border-emerald-200 bg-emerald-50 py-2.5 text-sm font-semibold text-emerald-700 hover:border-emerald-400 transition-all disabled:opacity-50">
+                {t("acknowledgeBtn")}
+              </button>
+            )}
+
+            <div className="flex gap-2 mt-3">
               <button type="button" onClick={() => setEditRow(null)}
                 className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-gray-400 transition-all">
                 ยกเลิก
