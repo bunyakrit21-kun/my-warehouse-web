@@ -3,6 +3,7 @@ import sql from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { DEFAULT_COUNTRY_CODE, isValidCountryCode } from "@/lib/countries";
 import { isRateLimited, getClientIp } from "@/lib/rateLimit";
+import { createThumbnail } from "@/lib/image-thumbnail";
 
 const MAX_SIGNUPS_PER_IP = 5;
 const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
 
     const {
       name, email, password, storeName, businessType, phone,
-      businessDayStartTime, businessDayEndTime, country, language,
+      businessDayStartTime, businessDayEndTime, country, language, logo,
     } = await request.json();
 
     if (!name || !email || !password || !storeName || !businessType || !phone) {
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const logoThumbnail = logo ? await createThumbnail(logo) : null;
 
     // สร้าง user และ store พร้อมกัน
     const result = await sql.begin(async (sql) => {
@@ -51,8 +53,14 @@ export async function POST(request: Request) {
       `;
 
       const [store] = await sql`
-        INSERT INTO stores (owner_id, name, business_type, phone, business_day_start_time, business_day_end_time, country, default_language)
-        VALUES (${user.id}, ${storeName}, ${businessType}, ${phone}, ${startTime}, ${endTime}, ${storeCountry}, ${storeLanguage})
+        INSERT INTO stores (
+          owner_id, name, business_type, phone, business_day_start_time, business_day_end_time,
+          country, default_language, logo, logo_thumbnail
+        )
+        VALUES (
+          ${user.id}, ${storeName}, ${businessType}, ${phone}, ${startTime}, ${endTime},
+          ${storeCountry}, ${storeLanguage}, ${logo ?? null}, ${logoThumbnail}
+        )
         RETURNING id, name
       `;
 

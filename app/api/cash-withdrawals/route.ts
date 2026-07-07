@@ -3,6 +3,7 @@ import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 import { getCurrentBusinessDate } from "@/lib/businessDay";
 import { verifyStorePin } from "@/lib/pin";
+import { createThumbnail } from "@/lib/image-thumbnail";
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
 
   try {
     const withdrawals = await sql`
-      SELECT cw.id, cw.amount, cw.reason, cw.created_at,
+      SELECT cw.id, cw.amount, cw.reason, cw.created_at, cw.photo_thumbnail,
              u.name AS employee_name
       FROM cash_withdrawals cw
       LEFT JOIN users u ON u.id = cw.user_id
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { amount, reason, pin, storeId: bodyStoreId } = await request.json();
+    const { amount, reason, pin, storeId: bodyStoreId, photo } = await request.json();
 
     if (!amount || Number(amount) <= 0 || !reason || !pin) {
       return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
@@ -53,10 +54,11 @@ export async function POST(request: Request) {
     const employee = pinResult.user;
 
     const businessDate = await getCurrentBusinessDate(storeId);
+    const photoThumbnail = photo ? await createThumbnail(photo) : null;
 
     await sql`
-      INSERT INTO cash_withdrawals (store_id, amount, reason, user_id, business_date)
-      VALUES (${storeId}, ${amount}, ${reason}, ${employee.id}, ${businessDate})
+      INSERT INTO cash_withdrawals (store_id, amount, reason, user_id, business_date, photo, photo_thumbnail)
+      VALUES (${storeId}, ${amount}, ${reason}, ${employee.id}, ${businessDate}, ${photo ?? null}, ${photoThumbnail})
     `;
 
     return NextResponse.json({ success: true }, { status: 201 });

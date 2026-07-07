@@ -10,6 +10,9 @@ interface Store {
   name: string;
   business_type: string;
   phone: string;
+  business_day_start_time: string | null;
+  business_day_end_time: string | null;
+  logo_thumbnail: string | null;
 }
 
 interface Member {
@@ -30,6 +33,10 @@ export default function StoresPage() {
   const [editName, setEditName] = useState("");
   const [editBusinessType, setEditBusinessType] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editStartTime, setEditStartTime] = useState("00:00");
+  const [editEndTime, setEditEndTime] = useState("00:00");
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoChanged, setLogoChanged] = useState<string | null>(null);
   const [savingStore, setSavingStore] = useState(false);
   const [storeMsg, setStoreMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -65,7 +72,35 @@ export default function StoresPage() {
     setEditName(s.name);
     setEditBusinessType(s.business_type);
     setEditPhone(s.phone ?? "");
+    setEditStartTime(s.business_day_start_time?.slice(0, 5) ?? "00:00");
+    setEditEndTime(s.business_day_end_time?.slice(0, 5) ?? "00:00");
+    setLogoPreview(s.logo_thumbnail ?? null);
+    setLogoChanged(null);
     setStoreMsg(null);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result !== "string") return;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 600;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUri = canvas.toDataURL("image/jpeg", 0.8);
+        setLogoPreview(dataUri);
+        setLogoChanged(dataUri);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const fetchMembers = async (storeId: number) => {
@@ -89,7 +124,11 @@ export default function StoresPage() {
     const res = await fetch(`/api/stores/${selectedStoreId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editName, business_type: editBusinessType, phone: editPhone }),
+      body: JSON.stringify({
+        name: editName, business_type: editBusinessType, phone: editPhone,
+        businessDayStartTime: editStartTime, businessDayEndTime: editEndTime,
+        ...(logoChanged !== null ? { logo: logoChanged } : {}),
+      }),
     });
     setSavingStore(false);
     if (res.ok) {
@@ -200,6 +239,21 @@ export default function StoresPage() {
               <h2 className="text-sm font-bold text-gray-800 mb-5">{t("storeDetails")}</h2>
               <form onSubmit={handleSaveStore} className="space-y-4">
                 <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">{t("storeLogoLabel")}</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 grid place-items-center">
+                      {logoPreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={logoPreview} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-gray-300 text-xl">🏪</span>
+                      )}
+                    </div>
+                    <input type="file" accept="image/*" onChange={handleLogoUpload}
+                      className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer font-sans" />
+                  </div>
+                </div>
+                <div>
                   <label className="text-xs font-semibold text-gray-500 block mb-1">{t("storeNameShort")}</label>
                   <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" required />
@@ -213,6 +267,22 @@ export default function StoresPage() {
                   <label className="text-xs font-semibold text-gray-500 block mb-1">{t("phone")}</label>
                   <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">{t("businessHoursLabel")}</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">{t("businessDayStart")}</label>
+                      <input type="time" value={editStartTime} onChange={e => setEditStartTime(e.target.value)}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">{t("businessDayEnd")}</label>
+                      <input type="time" value={editEndTime} onChange={e => setEditEndTime(e.target.value)}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1.5">{t("businessHoursHelp")}</p>
                 </div>
 
                 {storeMsg && (

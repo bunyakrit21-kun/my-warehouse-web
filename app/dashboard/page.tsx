@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/currency";
 import { DEFAULT_COUNTRY_CODE } from "@/lib/countries";
 
 interface Product { id: string; name: string; stock: number; minStock: number; unit: string; }
-interface Store { id: number; name: string; business_type: string; phone: string; my_role: string; country: string | null; }
+interface Store { id: number; name: string; business_type: string; phone: string; my_role: string; country: string | null; logo_thumbnail: string | null; }
 interface User { id: number; name: string; email: string; role: string; }
 interface Shift { id: number; name: string; start_time: string; end_time: string | null; color: string; }
 interface ScheduleEntry { id: number; work_date: string; shift_id: number; user_id: number; user_name: string; }
@@ -22,10 +22,24 @@ interface FlaggedClosing {
   closedByName: string | null;
 }
 
-const SHIFT_DOT_COLOR: Record<string, string> = {
-  blue: "bg-blue-500", green: "bg-green-500", orange: "bg-orange-500", purple: "bg-purple-500", red: "bg-red-500",
-};
-const MONTH_TH_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const DAY_TH_SHORT = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
+
+function getMondayOf(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function formatDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -36,8 +50,8 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
-  const [todayEntries, setTodayEntries] = useState<ScheduleEntry[]>([]);
+  const [weekShifts, setWeekShifts] = useState<Shift[]>([]);
+  const [weekEntries, setWeekEntries] = useState<ScheduleEntry[]>([]);
   const [todayDateStr, setTodayDateStr] = useState("");
   const [flaggedClosings, setFlaggedClosings] = useState<FlaggedClosing[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -66,14 +80,14 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchTodayScheduleForStore = async (sid: number) => {
-    const d = new Date();
-    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const fetchWeekScheduleForStore = async (sid: number) => {
+    const todayStr = formatDateStr(new Date());
     setTodayDateStr(todayStr);
-    const data = await fetch(`/api/schedule?storeId=${sid}&weekStart=${todayStr}&days=1`).then(r => r.ok ? r.json() : null);
+    const weekStart = formatDateStr(getMondayOf(new Date()));
+    const data = await fetch(`/api/schedule?storeId=${sid}&weekStart=${weekStart}&days=7`).then(r => r.ok ? r.json() : null);
     if (!data) return;
-    setTodayShifts(data.shifts ?? []);
-    setTodayEntries((data.entries ?? []).filter((e: ScheduleEntry) => e.work_date.slice(0, 10) === todayStr));
+    setWeekShifts(data.shifts ?? []);
+    setWeekEntries(data.entries ?? []);
   };
 
   useEffect(() => {
@@ -87,7 +101,7 @@ export default function DashboardPage() {
       setStores(storesData);
       const first: Store | null = storesData[0] ?? null;
       setCurrentStore(first);
-      if (first) await Promise.all([fetchProductsForStore(first.id), fetchTodayScheduleForStore(first.id), fetchFlaggedClosingsForStore(first.id)]);
+      if (first) await Promise.all([fetchProductsForStore(first.id), fetchWeekScheduleForStore(first.id), fetchFlaggedClosingsForStore(first.id)]);
       setMounted(true);
     }
     init();
@@ -111,21 +125,22 @@ export default function DashboardPage() {
 
   if (!mounted) return <div className="p-8 text-center text-gray-400">{t("loading")}</div>;
 
+  const outOfStock = products.filter(p => p.stock === 0);
+  const lowStock = products.filter(p => p.stock > 0 && p.stock <= p.minStock);
   const criticalItems = products.filter(p => p.stock <= p.minStock);
+  const normalStock = products.length - criticalItems.length;
+  const stockTotal = products.length || 1;
 
   const ROLE_LABEL: Record<string, string> = { owner: t("roleOwner"), admin: t("roleAdmin"), manager: t("roleManager"), staff: t("roleStaff") };
 
-  const todayShiftChips = todayShifts.map(shift => ({
-    shift,
-    assigned: todayEntries.filter(e => e.shift_id === shift.id),
-  }));
-  const [todayYear, todayMonth, todayDay] = todayDateStr ? todayDateStr.split("-").map(Number) : [0, 0, 0];
-  const todayThaiLabel = todayDateStr ? `${todayDay} ${MONTH_TH_SHORT[todayMonth - 1]}` : "";
-  const todayMonthEn = todayDateStr
-    ? new Date(todayYear, todayMonth - 1, todayDay).toLocaleDateString("en-US", { month: "short" }).toUpperCase()
-    : "";
+  // Mini week calendar for the schedule card
+  const weekStartDate = getMondayOf(new Date());
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStartDate, i));
+  const entriesOn = (dateStr: string) => weekEntries.filter(e => e.work_date.slice(0, 10) === dateStr);
+  const todayEntries = entriesOn(todayDateStr);
+  const todayNames = Array.from(new Set(todayEntries.map(e => e.user_name)));
 
-  const quickActions = [
+  const stockCashActions = [
     {
       key: "in",
       label: t("quickStockIn"),
@@ -162,9 +177,13 @@ export default function DashboardPage() {
         </svg>
       ),
     },
+  ];
+
+  const freshActions = [
     {
       key: "fresh",
       label: t("quickFreshCheck"),
+      desc: t("freshCheckDesc"),
       href: `/dashboard/fresh-check${currentStore ? `?storeId=${currentStore.id}` : ""}`,
       box: "bg-teal-50 border-teal-100",
       icon: <span className="text-xl">🥬</span>,
@@ -172,33 +191,10 @@ export default function DashboardPage() {
     {
       key: "suggest",
       label: t("quickSuggestOrder"),
+      desc: t("freshViewSummary"),
       href: `/dashboard/fresh-summary${currentStore ? `?storeId=${currentStore.id}` : ""}`,
       box: "bg-amber-50 border-amber-100",
       icon: <span className="text-xl">📊</span>,
-    },
-    {
-      key: "cash-closing",
-      label: t("quickCashClosing"),
-      href: `/dashboard/cash-closing${currentStore ? `?storeId=${currentStore.id}` : ""}`,
-      box: "bg-emerald-50 border-emerald-100",
-      icon: (
-        <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
-          <rect x="3" y="5" width="18" height="14" rx="2" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12l2.5 2.5L16 9" />
-        </svg>
-      ),
-    },
-    {
-      key: "accounting",
-      label: t("quickAccounting"),
-      href: `/dashboard/accounting${currentStore ? `?storeId=${currentStore.id}` : ""}`,
-      box: "bg-indigo-50 border-indigo-100",
-      icon: (
-        <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v8m-4-4h8" />
-          <circle cx="12" cy="12" r="9" />
-        </svg>
-      ),
     },
   ];
 
@@ -210,7 +206,12 @@ export default function DashboardPage() {
           
           {/* Logo + ชื่อร้าน */}
           <div className="flex items-center gap-2.5">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-black text-white font-black text-base">D</div>
+            {currentStore?.logo_thumbnail ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={currentStore.logo_thumbnail} alt="" className="h-10 w-10 rounded-xl object-cover border border-gray-200" />
+            ) : (
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-black text-white font-black text-base">D</div>
+            )}
             <div className="leading-tight">
               <span className="font-bold text-gray-900">DiaM</span>
               <span className="text-gray-300 mx-2">|</span>
@@ -259,7 +260,7 @@ export default function DashboardPage() {
                     {stores.map(store => (
                       <button
                         key={store.id}
-                        onClick={() => { setCurrentStore(store); setDropdownOpen(false); fetchProductsForStore(store.id); fetchTodayScheduleForStore(store.id); fetchFlaggedClosingsForStore(store.id); }}
+                        onClick={() => { setCurrentStore(store); setDropdownOpen(false); fetchProductsForStore(store.id); fetchWeekScheduleForStore(store.id); fetchFlaggedClosingsForStore(store.id); }}
                         className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-xl mb-1 transition-all ${currentStore?.id === store.id ? "bg-black text-white" : "hover:bg-gray-50"}`}
                       >
                         <div>
@@ -305,99 +306,86 @@ export default function DashboardPage() {
       </header>
 
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="grid gap-5 md:grid-cols-3 mb-6">
 
-          {/* การ์ด 1: สินค้าทั้งหมด */}
-          <Link href={`/dashboard/inventory${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t("totalStockLabel")}</p>
-                <p className="mt-2 text-4xl font-black text-gray-900 tracking-tight">{products.length} <span className="text-xs font-normal text-gray-400">{t("items")}</span></p>
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
-                {criticalItems.length > 0 && (
-                  <span className="inline-flex rounded-full bg-red-50 border border-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">{t("criticalBadge")} {criticalItems.length} {t("items")}</span>
-                )}
-                <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-xl text-gray-400 mt-2">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                </div>
-              </div>
-            </div>
-            <div className="mt-5 pt-4 border-t border-gray-100">
-              <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-2">{t("lowStockAlert")}</p>
-              {criticalItems.length === 0 ? (
-                <p className="text-xs text-gray-400">{t("stockNormal")}</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {criticalItems.slice(0, 3).map(item => (
-                    <li key={item.id} className="flex justify-between text-xs font-semibold bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-100">
-                      <span className="truncate max-w-[160px]">{item.name}</span>
-                      <span className={item.stock === 0 ? "text-red-600 font-black" : "text-orange-500 font-black"}>{item.stock} {item.unit}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </Link>
+        {/* สรุปสต็อก — แผนภาพสรุปเดียว */}
+        <Link href={`/dashboard/inventory${currentStore ? `?storeId=${currentStore.id}` : ""}`}
+          className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all mb-5">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t("totalStockLabel")}</p>
+            <span className="text-xs font-semibold text-gray-400">{t("stockStatusLabel")} →</span>
+          </div>
+          <div className="flex items-baseline gap-2 mb-4">
+            <span className="text-4xl font-black text-gray-900 tracking-tight">{products.length}</span>
+            <span className="text-xs font-normal text-gray-400">{t("items")}</span>
+          </div>
 
-          {/* การ์ด 2: ทางลัดรับเข้า/เบิกออก/เบิกเงิน/เช็คของสด/แนะนำสั่ง */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">{t("stockInOutLabel")}</p>
-            <div className="grid grid-cols-3 gap-3">
-              {quickActions.map(action => (
-                <Link key={action.key} href={action.href}
-                  className="flex flex-col items-center gap-2 rounded-xl py-2 hover:bg-gray-50 transition-all">
-                  <div className={`w-12 h-12 rounded-2xl border grid place-items-center ${action.box}`}>
-                    {action.icon}
-                  </div>
-                  <span className="text-[11px] font-semibold text-gray-600 text-center leading-tight">{action.label}</span>
-                </Link>
-              ))}
+          {/* แถบสัดส่วนสต็อก */}
+          <div className="flex h-3 w-full rounded-full overflow-hidden bg-gray-100">
+            {normalStock > 0 && <div className="bg-green-500" style={{ width: `${(normalStock / stockTotal) * 100}%` }} />}
+            {lowStock.length > 0 && <div className="bg-orange-400" style={{ width: `${(lowStock.length / stockTotal) * 100}%` }} />}
+            {outOfStock.length > 0 && <div className="bg-red-500" style={{ width: `${(outOfStock.length / stockTotal) * 100}%` }} />}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+              <span className="text-xs text-gray-500">{t("normal")}</span>
+              <span className="text-xs font-bold text-gray-900 ml-auto">{normalStock}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-orange-400 shrink-0" />
+              <span className="text-xs text-gray-500">{t("nearEmpty")}</span>
+              <span className="text-xs font-bold text-gray-900 ml-auto">{lowStock.length}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              <span className="text-xs text-gray-500">{t("outOfStock")}</span>
+              <span className="text-xs font-bold text-gray-900 ml-auto">{outOfStock.length}</span>
             </div>
           </div>
-{/* การ์ด 3: สถานะสินค้า */}
-          <Link href={`/dashboard/reports${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t("stockStatusLabel")}</p>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-4xl font-black text-gray-900">{products.length - criticalItems.length}</span>
-                  <span className="text-sm text-gray-400">/ {products.length} {t("items")}</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">{t("stockOkItems")}</p>
-              </div>
-              <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-xl text-gray-400">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2zm9 0v-3a2 2 0 012-2h2a2 2 0 012 2v3a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-              </div>
-            </div>
-            <div className="mt-6 space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"/>{t("normal")}</span>
-                <span className="text-green-600">{products.length - criticalItems.length} {t("items")}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>{t("nearEmpty")}</span>
-                <span className="text-red-500">{criticalItems.length} {t("items")}</span>
-              </div>
-            </div>
-          </Link>
 
-        </div>
+          {criticalItems.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-2">{t("lowStockAlert")}</p>
+              <ul className="space-y-1.5">
+                {criticalItems.slice(0, 3).map(item => (
+                  <li key={item.id} className="flex justify-between text-xs font-semibold bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-100">
+                    <span className="truncate max-w-[160px]">{item.name}</span>
+                    <span className={item.stock === 0 ? "text-red-600 font-black" : "text-orange-500 font-black"}>{item.stock} {item.unit}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Link>
 
-        {/* การ์ด รายการปิดยอดที่ต้องตรวจสอบ */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm mb-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t("cashClosingAlertsTitle")}</p>
-            {flaggedClosings.length > 0 && (
-              <span className="inline-flex rounded-full bg-red-50 border border-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
-                {t("cashClosingAlertBadge")} {flaggedClosings.length}
-              </span>
-            )}
+        {/* การ์ด ปิดยอดเงินสด (แยกไว้ต่างหาก) */}
+        <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm mb-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t("quickCashClosing")}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t("cashClosingAlertsTitle")}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {flaggedClosings.length > 0 && (
+                <span className="inline-flex rounded-full bg-red-50 border border-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                  {t("cashClosingAlertBadge")} {flaggedClosings.length}
+                </span>
+              )}
+              <Link href={`/dashboard/cash-closing${currentStore ? `?storeId=${currentStore.id}` : ""}`}
+                className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2 transition-all flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12l2.5 2.5L16 9" />
+                </svg>
+                {t("quickCashClosing")}
+              </Link>
+            </div>
           </div>
           {flaggedClosings.length === 0 ? (
-            <p className="text-xs text-gray-400 mt-3">{t("noCashClosingAlerts")}</p>
+            <p className="text-xs text-gray-400">{t("noCashClosingAlerts")}</p>
           ) : (
-            <ul className="mt-3 space-y-2">
+            <ul className="space-y-2">
               {flaggedClosings.map(c => (
                 <li key={c.id} className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
                   <div className="min-w-0">
@@ -429,73 +417,116 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* การ์ด ตารางงาน */}
-        <Link href={`/dashboard/schedule${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:border-black transition-all mb-5">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="shrink-0">
+        {/* การ์ดใหญ่ ตารางงาน — ปฏิทินรายสัปดาห์ */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm mb-5">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">ตารางงาน</p>
-              <p className="mt-1 text-lg font-black text-gray-900">จัดกะพนักงาน</p>
-              <p className="text-xs text-gray-400 mt-0.5">วางแผนตารางงานรายสัปดาห์</p>
+              <p className="mt-1 text-lg font-black text-gray-900">จัดกะพนักงานสัปดาห์นี้</p>
             </div>
+            <Link href={`/dashboard/schedule${currentStore ? `?storeId=${currentStore.id}` : ""}`}
+              className="text-xs font-bold text-gray-500 hover:text-black transition-colors flex items-center gap-1">
+              ดูตารางเต็ม
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M9 5l7 7-7 7" /></svg>
+            </Link>
+          </div>
 
-            {todayShiftChips.length > 0 && (
-              <div className="flex-1 min-w-[200px]">
-                <p className="text-xs font-semibold text-gray-400 mb-2">วันนี้ทำงาน · {todayThaiLabel}</p>
-                <div className="flex flex-wrap gap-2">
-                  {todayShiftChips.flatMap(({ shift, assigned }) =>
-                    assigned.length > 0
-                      ? assigned.map(e => (
-                          <div key={`e-${e.id}`} className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-full pl-1.5 pr-3 py-1.5">
-                            <span className={`w-6 h-6 shrink-0 rounded-full grid place-items-center text-white text-[10px] font-bold ${SHIFT_DOT_COLOR[shift.color] ?? "bg-gray-400"}`}>
-                              {e.user_name?.[0] ?? "?"}
-                            </span>
-                            <span className="text-xs font-bold text-gray-800">{e.user_name}</span>
-                            <span className="text-[11px] text-gray-400">
-                              {shift.start_time}{shift.end_time ? `–${shift.end_time}` : ""}
-                            </span>
-                          </div>
-                        ))
-                      : [
-                          <div key={`u-${shift.id}`} className="flex items-center gap-1.5 bg-red-50 border border-red-100 text-red-600 rounded-full px-3 py-1.5">
-                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <rect x="4" y="4" width="16" height="16" rx="3" />
-                            </svg>
-                            <span className="text-xs font-bold">ยังไม่มีคนกะ{shift.name}</span>
-                          </div>,
-                        ]
-                  )}
+          <div className="grid grid-cols-7 gap-2">
+            {weekDays.map((d, i) => {
+              const dateStr = formatDateStr(d);
+              const isToday = dateStr === todayDateStr;
+              const names = Array.from(new Set(entriesOn(dateStr).map(e => e.user_name)));
+              return (
+                <div key={i} className={`rounded-xl border p-2.5 min-h-[92px] flex flex-col ${isToday ? "border-black bg-gray-50" : "border-gray-100"}`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-bold uppercase ${isToday ? "text-black" : "text-gray-400"}`}>{DAY_TH_SHORT[i]}</span>
+                    <span className={`text-xs font-black w-5 h-5 rounded-full grid place-items-center ${isToday ? "bg-black text-white" : "text-gray-700"}`}>{d.getDate()}</span>
+                  </div>
+                  <div className="mt-1.5 flex flex-col gap-1 flex-1">
+                    {names.length === 0 ? (
+                      weekShifts.length > 0 && <span className="text-[10px] text-gray-300 mt-1">ว่าง</span>
+                    ) : (
+                      <>
+                        {names.slice(0, 2).map(n => (
+                          <span key={n} className="text-[10px] font-semibold text-gray-700 bg-white border border-gray-200 rounded-md px-1.5 py-0.5 truncate">{n}</span>
+                        ))}
+                        {names.length > 2 && <span className="text-[10px] text-gray-400 font-semibold">+{names.length - 2} คน</span>}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })}
+          </div>
 
-            <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl text-center shrink-0">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider leading-none">{todayMonthEn}</p>
-              <p className="text-lg font-black text-gray-900 leading-tight mt-0.5">{todayDay || ""}</p>
+          {todayNames.length > 0 && (
+            <p className="text-xs text-gray-400 mt-4">
+              <span className="font-semibold text-gray-600">วันนี้ทำงาน:</span> {todayNames.join(", ")}
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-2 mb-5">
+
+          {/* การ์ด รับเข้า/เบิกออก/เบิกเงิน */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">{t("stockInOutLabel")}</p>
+            <div className="grid grid-cols-3 gap-3">
+              {stockCashActions.map(action => (
+                <Link key={action.key} href={action.href}
+                  className="flex flex-col items-center gap-2 rounded-xl py-2 hover:bg-gray-50 transition-all">
+                  <div className={`w-12 h-12 rounded-2xl border grid place-items-center ${action.box}`}>
+                    {action.icon}
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-600 text-center leading-tight">{action.label}</span>
+                </Link>
+              ))}
             </div>
+          </div>
+
+          {/* การ์ด เช็คของสด + แนะนำสั่ง */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">ของสดประจำวัน</p>
+            <div className="grid grid-cols-2 gap-3">
+              {freshActions.map(action => (
+                <Link key={action.key} href={action.href}
+                  className={`rounded-xl border p-4 hover:border-current transition-all ${action.box}`}>
+                  <div className="text-xl mb-1.5">{action.icon}</div>
+                  <p className="text-xs font-bold text-gray-800">{action.label}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{action.desc}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* การ์ดใหญ่ ระบบบัญชี — WIP */}
+        <Link href={`/dashboard/accounting${currentStore ? `?storeId=${currentStore.id}` : ""}`}
+          className="block rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-6 shadow-sm hover:border-indigo-300 transition-all">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-100 border border-indigo-200 grid place-items-center shrink-0">
+                <svg className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v8m-4-4h8" />
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-black text-gray-900">{t("quickAccounting")}</p>
+                  <span className="inline-flex rounded-full bg-indigo-100 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-600">กำลังพัฒนา</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">บัญชี รายรับ-รายจ่าย และยอดคงเหลือทุกบัญชีของร้าน</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-indigo-600 flex items-center gap-1 shrink-0">
+              เปิดระบบบัญชี
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M9 5l7 7-7 7" /></svg>
+            </span>
           </div>
         </Link>
 
-        {/* การ์ด เช็คของสด */}
-        <div className="grid grid-cols-2 gap-4 mb-5">
-          <Link href={`/dashboard/fresh-check${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-green-100 bg-green-50 p-5 shadow-sm hover:border-green-400 transition-all">
-            <div className="text-2xl mb-2">🥬</div>
-            <p className="text-xs font-bold text-green-700 uppercase tracking-wider">{t("freshCheckTitle")}</p>
-            <p className="text-xs text-green-600/70 mt-0.5">{t("freshCheckDesc")}</p>
-          </Link>
-          <Link href={`/dashboard/fresh-summary${currentStore ? `?storeId=${currentStore.id}` : ""}`} className="block rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm hover:border-amber-400 transition-all">
-            <div className="text-2xl mb-2">📊</div>
-            <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">{t("freshSummaryTitle")}</p>
-            <p className="text-xs text-amber-600/70 mt-0.5">{t("freshViewSummary")}</p>
-          </Link>
-        </div>
-
-        {/* notification bar */}
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3.5 flex items-center gap-3 shadow-sm">
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
-          <p className="text-xs font-semibold text-gray-500">
-            {t("systemAlert")}
-          </p>
-        </div>
       </section>
     </main>
   );

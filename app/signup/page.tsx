@@ -76,6 +76,7 @@ export default function SignupPage() {
   const [languageTouched, setLanguageTouched] = useState(false);
   const [businessDayStartTime, setBusinessDayStartTime] = useState("00:00");
   const [businessDayEndTime, setBusinessDayEndTime] = useState("00:00");
+  const [logo, setLogo] = useState<string | null>(null);
 
   const [termsAccepted, setTermsAccepted] = useState(false);
 
@@ -88,6 +89,28 @@ export default function SignupPage() {
   const handleCountryChange = (code: string) => {
     setCountry(code);
     if (!languageTouched) setLanguage(suggestLangForCountry(code));
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result !== "string") return;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 600;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setLogo(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const goNextFromStep1 = () => {
@@ -131,7 +154,7 @@ export default function SignupPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name, email, password, storeName, businessType: finalBusinessType, phone,
-        country, language, businessDayStartTime, businessDayEndTime,
+        country, language, businessDayStartTime, businessDayEndTime, logo,
       }),
     });
 
@@ -228,6 +251,21 @@ export default function SignupPage() {
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">{t("storeInfo")}</p>
                 <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">{t("storeLogoLabel")}</label>
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 grid place-items-center">
+                        {logo ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={logo} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-gray-300 text-xl">🏪</span>
+                        )}
+                      </div>
+                      <input type="file" accept="image/*" onChange={handleLogoUpload}
+                        className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer font-sans" />
+                    </div>
+                  </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 block mb-1">{t("storeNameShort")}</label>
                     <input type="text" placeholder={t("storeNameShortPlaceholder")} value={storeName} onChange={e => setStoreName(e.target.value)}

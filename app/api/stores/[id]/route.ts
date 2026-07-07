@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
+import { createThumbnail } from "@/lib/image-thumbnail";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,7 +17,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
   }
 
-  const [store] = await sql`SELECT id, name, business_type, phone, country FROM stores WHERE id = ${storeId}`;
+  const [store] = await sql`
+    SELECT id, name, business_type, phone, country, business_day_start_time, business_day_end_time, logo_thumbnail
+    FROM stores WHERE id = ${storeId}
+  `;
   if (!store) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
   return NextResponse.json(store);
 }
@@ -32,9 +36,25 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 
   try {
-    const { name, business_type, phone } = await request.json();
+    const { name, business_type, phone, businessDayStartTime, businessDayEndTime, logo } = await request.json();
+
+    const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (businessDayStartTime !== undefined && !TIME_RE.test(businessDayStartTime)) {
+      return NextResponse.json({ error: "เวลาเปิดร้านไม่ถูกต้อง" }, { status: 400 });
+    }
+    if (businessDayEndTime !== undefined && !TIME_RE.test(businessDayEndTime)) {
+      return NextResponse.json({ error: "เวลาปิดร้านไม่ถูกต้อง" }, { status: 400 });
+    }
+
+    // logo: undefined = leave unchanged, null = remove, string = new photo (thumbnail regenerated)
+    const logoThumbnail = logo ? await createThumbnail(logo) : logo;
+
     await sql`
-      UPDATE stores SET name = ${name}, business_type = ${business_type}, phone = ${phone}
+      UPDATE stores SET
+        name = ${name}, business_type = ${business_type}, phone = ${phone}
+        ${businessDayStartTime !== undefined ? sql`, business_day_start_time = ${businessDayStartTime}` : sql``}
+        ${businessDayEndTime !== undefined ? sql`, business_day_end_time = ${businessDayEndTime}` : sql``}
+        ${logo !== undefined ? sql`, logo = ${logo}, logo_thumbnail = ${logoThumbnail}` : sql``}
       WHERE id = ${id}
     `;
     return NextResponse.json({ success: true });

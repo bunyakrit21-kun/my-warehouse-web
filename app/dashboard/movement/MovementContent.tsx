@@ -37,6 +37,7 @@ interface CashWithdrawal {
   amount: number;
   reason: string;
   user: string;
+  photoThumbnail: string | null;
 }
 
 interface RawMovement {
@@ -60,6 +61,7 @@ interface RawCashWithdrawal {
   employee_pin: string | null;
   created_at: string;
   employee_name: string | null;
+  photo_thumbnail: string | null;
 }
 
 const QUICK_NOTES = ["เติมสต็อกของ", "เบิกไปใช้ครัว", "ของชำรุด"];
@@ -87,6 +89,7 @@ export default function MovementPage() {
   // Cash withdrawal fields
   const [cashAmount, setCashAmount] = useState<number | "">("");
   const [cashReason, setCashReason] = useState("");
+  const [cashPhoto, setCashPhoto] = useState<string | null>(null);
 
   const [pin, setPin] = useState(["", "", "", ""]);
   const [employeeName, setEmployeeName] = useState("");
@@ -149,6 +152,7 @@ export default function MovementPage() {
         amount: c.amount,
         reason: c.reason,
         user: c.employee_name ?? c.employee_pin ?? "-",
+        photoThumbnail: c.photo_thumbnail,
       }));
       setCashWithdrawals(formattedCash);
 
@@ -169,6 +173,28 @@ export default function MovementPage() {
   const currentProduct = products.find((p) => p.id === selectedProductId);
   const isOverStocked = type === "MOVE_OUT" && currentProduct && Number(qty) > currentProduct.stock;
   const isCashMode = type === "CASH_OUT";
+
+  const handleCashPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result !== "string") return;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1000;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setCashPhoto(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const verifyPin = async (pinToVerify: string) => {
     setVerifyingPin(true);
@@ -208,6 +234,7 @@ export default function MovementPage() {
             reason: cashReason.trim(),
             pin: pin.join(""),
             storeId,
+            photo: cashPhoto,
           }),
         });
         const data = await res.json();
@@ -360,6 +387,19 @@ export default function MovementPage() {
                     </div>
                     <textarea rows={2} placeholder={t("cashReasonPlaceholder")} value={cashReason} onChange={(e) => setCashReason(e.target.value)}
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
+                  </div>
+
+                  {/* รูปหลักฐาน (ถ้ามี) */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">{t("cashReceiptPhotoLabel")}</label>
+                    <div className="flex items-center gap-3">
+                      {cashPhoto && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={cashPhoto} alt="" className="w-14 h-14 rounded-xl object-cover border border-gray-200 shrink-0" />
+                      )}
+                      <input type="file" accept="image/*" capture="environment" onChange={handleCashPhotoUpload}
+                        className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer font-sans" />
+                    </div>
                   </div>
 
                 </>
@@ -624,12 +664,13 @@ export default function MovementPage() {
                     <th className="px-6 py-4 text-center">{t("colAmount")}</th>
                     <th className="px-6 py-4">{t("colReason")}</th>
                     <th className="px-6 py-4">{t("colWithdrawBy")}</th>
+                    <th className="px-6 py-4">{t("colReceipt")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-gray-700">
                   {cashWithdrawals.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-400">{t("noCash")}</td>
+                      <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">{t("noCash")}</td>
                     </tr>
                   ) : (
                     cashWithdrawals.map((c) => (
@@ -641,6 +682,14 @@ export default function MovementPage() {
                         </td>
                         <td className="px-6 py-4 text-gray-700 text-xs max-w-xs truncate">{c.reason}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-gray-800 font-semibold text-xs">{c.user}</td>
+                        <td className="whitespace-nowrap px-6 py-4">
+                          {c.photoThumbnail ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={c.photoThumbnail} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200" />
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}
