@@ -61,6 +61,7 @@ const th = {
   quickCashOut: "เบิกเงิน",
   quickFreshCheck: "เช็คของสด",
   quickSuggestOrder: "แนะนำสั่ง",
+  quickCashClosing: "ปิดยอดเงินสด",
   stockStatusLabel: "สถานะสินค้าในคลัง",
   stockOkItems: "สินค้าที่สต็อกปกติ",
   normal: "ปกติ",
@@ -212,6 +213,13 @@ const th = {
   businessTypeCustomPlaceholder: "พิมพ์ประเภทธุรกิจของคุณ",
   phone: "เบอร์โทร",
   phonePlaceholder: "0812345678",
+  storeCountryLabel: "ประเทศที่ตั้งร้าน",
+  storeCountryTzHint: "ระบบจะใช้เขตเวลา:",
+  storeCountryCurrencyHint: "สกุลเงิน:",
+  businessHoursLabel: "เวลาเปิด-ปิดร้าน",
+  businessHoursHelp: "ถ้าร้านเปิดข้ามเที่ยงคืน ให้ใส่เวลาจริง ระบบจะแยกยอดขายรายวันให้ถูกต้อง ไม่กรอกได้ (ค่าเริ่มต้น 00:00–00:00 นับแบบวันปฏิทินปกติ)",
+  businessDayStart: "เวลาเปิดร้าน",
+  businessDayEnd: "เวลาปิดร้าน",
   creatingAccount: "กำลังสร้างบัญชี...",
   createAccount: "สร้างบัญชีและร้านค้า",
   hasAccount: "มีบัญชีอยู่แล้ว?",
@@ -222,6 +230,28 @@ const th = {
   bizHotel: "โรงแรม / ที่พัก",
   bizSpa: "สปา / ความงาม",
   bizOther: "อื่นๆ",
+
+  // Signup — 3-step flow (spec-06)
+  stepIndicatorLabel: "ขั้นที่",
+  stepOf: "จาก 3",
+  confirmPasswordPlaceholder: "พิมพ์รหัสผ่านอีกครั้ง",
+  passwordMinCharsStrong: "อย่างน้อย 8 ตัวอักษร มีตัวเลขอย่างน้อย 1 ตัว",
+  passwordStrengthLabel: "ความแข็งแรงของรหัสผ่าน",
+  passwordStrengthWeak: "อ่อน",
+  passwordStrengthMedium: "ปานกลาง",
+  passwordStrengthStrong: "แข็งแรง",
+  showPassword: "แสดงรหัสผ่าน",
+  hidePassword: "ซ่อนรหัสผ่าน",
+  storeLanguageLabel: "ภาษาเริ่มต้นของร้าน",
+  storeLanguageHint: "(เปลี่ยนได้ด้านล่าง)",
+  confirmStepTitle: "ยืนยันและเริ่มใช้งาน",
+  termsAgree: "ฉันยอมรับข้อตกลงการใช้งาน",
+  termsRequired: "กรุณายอมรับข้อตกลงการใช้งานก่อนสมัคร",
+  stepNext: "ถัดไป",
+  signupDoneTitle: "สร้างร้านสำเร็จ!",
+  signupDoneMessage: "กรุณาเข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่เพิ่งตั้งเอง",
+  goToLoginBtn: "ไปหน้าเข้าสู่ระบบ",
+  fillAllFields: "กรุณากรอกข้อมูลให้ครบทุกช่อง",
 
   // Profile
   profileTitle: "โปรไฟล์และตั้งค่า",
@@ -295,7 +325,6 @@ const th = {
   defaultUnit: "แพ็ค",
 
   // Units & counters
-  baht: "บาท",
   pcs: "ชิ้น",
   person: "คน",
 
@@ -317,7 +346,7 @@ const th = {
   csvCatProduct: "สินค้า",
   csvCatDaily: "รายวัน",
   csvCashTimes: "จำนวนครั้งเบิกเงิน",
-  csvCashTotal: "ยอดเบิกเงินรวม (บาท)",
+  csvCashTotal: "ยอดเบิกเงินรวม",
 
   // Stores
   confirmDeleteMember: "ลบ \"%s\" ออกจากทีมงาน?",

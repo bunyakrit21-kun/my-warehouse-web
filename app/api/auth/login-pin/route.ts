@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import jwt from "jsonwebtoken";
+import { verifyStoreNameAndPin } from "@/lib/pin";
 
 export async function POST(request: Request) {
   try {
@@ -10,20 +11,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "กรุณากรอกข้อมูลให้ครบ" }, { status: 400 });
     }
 
-    // หา user ที่มี PIN นี้ และเป็นสมาชิกของร้านที่ระบุ
-    const [user] = await sql`
-      SELECT u.id, u.name, u.role, u.pin, u.store_id
-      FROM users u
-      JOIN stores s ON s.id = u.store_id
-      WHERE u.pin = ${pin} AND u.active = true AND s.name = ${storeName}
-    `;
+    const result = await verifyStoreNameAndPin(storeName, pin);
 
-    if (!user) {
+    if (!result.ok) {
+      if (result.reason === "locked") {
+        const mins = Math.ceil(result.retryAfterSeconds / 60);
+        return NextResponse.json({ error: `ใส่ PIN ผิดหลายครั้งเกินไป กรุณาลองใหม่ในอีก ${mins} นาที` }, { status: 429 });
+      }
       return NextResponse.json({ error: "PIN หรือชื่อร้านไม่ถูกต้อง" }, { status: 401 });
     }
+    const user = result.user;
 
     const [store] = await sql`
-      SELECT id, name FROM stores WHERE id = ${user.store_id}
+      SELECT id, name FROM stores WHERE id = ${user.storeId}
     `;
 
     if (!store) {

@@ -43,7 +43,7 @@ export default async function proxy(request: NextRequest) {
         }
       } else {
         // พนักงานทั่วไป → movement + fresh-check เท่านั้น
-        const staffAllowed = ["/dashboard/movement", "/dashboard/fresh-check"];
+        const staffAllowed = ["/dashboard/movement", "/dashboard/fresh-check", "/dashboard/cash-closing"];
         if (!staffAllowed.some(p => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL("/dashboard/movement", request.url));
         }

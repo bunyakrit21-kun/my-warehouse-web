@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
+import { getCurrentBusinessDate } from "@/lib/businessDay";
+import { verifyStorePin } from "@/lib/pin";
 
 const VALID_TYPES = ["MOVE_IN", "MOVE_OUT"] as const;
 
@@ -23,9 +25,10 @@ export async function GET(request: Request) {
         m.employee_pin,
         p.name AS product_name,
         p.unit,
-        (SELECT name FROM users WHERE pin = m.employee_pin AND store_id = ${storeId} ORDER BY active DESC LIMIT 1) AS employee_name
+        u.name AS employee_name
       FROM movements m
       LEFT JOIN products p ON p.id = m.product_id
+      LEFT JOIN users u ON u.id = m.user_id
       WHERE m.store_id = ${storeId}
       ORDER BY m.created_at DESC
       LIMIT 50
@@ -55,12 +58,17 @@ export async function POST(request: Request) {
     const storeId = await resolveStoreId(user, bodyStoreId);
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
-    const [employee] = await sql`
-      SELECT id FROM users WHERE pin = ${pin} AND active = true AND store_id = ${storeId}
-    `;
-    if (!employee) {
+    const pinResult = await verifyStorePin(storeId, pin);
+    if (!pinResult.ok) {
+      if (pinResult.reason === "locked") {
+        const mins = Math.ceil(pinResult.retryAfterSeconds / 60);
+        return NextResponse.json({ error: `ใส่ PIN ผิดหลายครั้งเกินไป กรุณาลองใหม่ในอีก ${mins} นาที` }, { status: 429 });
+      }
       return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
     }
+    const employee = pinResult.user;
+
+    const businessDate = await getCurrentBusinessDate(storeId);
 
     const result = await sql.begin(async (sql) => {
       const products = await sql`
@@ -78,8 +86,8 @@ export async function POST(request: Request) {
       }
 
       await sql`
-        INSERT INTO movements (product_id, employee_pin, type, qty, note, store_id)
-        VALUES (${productId}, ${pin}, ${type}, ${qty}, ${note || ""}, ${storeId})
+        INSERT INTO movements (product_id, user_id, type, qty, note, store_id, business_date)
+        VALUES (${productId}, ${employee.id}, ${type}, ${qty}, ${note || ""}, ${storeId}, ${businessDate})
       `;
 
       const change = type === "MOVE_IN" ? qty : -qty;

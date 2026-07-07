@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
+import { getCurrentBusinessDate } from "@/lib/businessDay";
 
 // GET — admin summary: par level, today's remaining, suggested order, 7-day avg
 export async function GET(request: Request) {
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
   try {
-    const todayBKK = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+    const businessDate = await getCurrentBusinessDate(storeId);
 
     const rows = await sql`
       SELECT
@@ -27,23 +28,22 @@ export async function GET(request: Request) {
         -- today's check
         today.remaining_qty AS "remainingToday",
         today.waste_qty AS "wasteToday",
-        today.checked_by_pin AS "checkedByPin",
         today.created_at AS "checkedAt",
         checker.name AS "checkedByName",
         -- avg of last 7 days with data (excluding today)
         hist.avg_remaining AS "avgRemaining"
       FROM products p
       LEFT JOIN daily_stock_checks today
-        ON today.product_id = p.id AND today.store_id = p.store_id AND today.check_date = ${todayBKK}::date
+        ON today.product_id = p.id AND today.store_id = p.store_id AND today.business_date = ${businessDate}::date
       LEFT JOIN users checker
-        ON checker.pin = today.checked_by_pin AND checker.store_id = ${storeId}
+        ON checker.id = today.checked_by_user_id
       LEFT JOIN LATERAL (
         SELECT ROUND(AVG(remaining_qty)::numeric, 1) AS avg_remaining
         FROM (
           SELECT remaining_qty FROM daily_stock_checks
           WHERE product_id = p.id AND store_id = ${storeId}
-            AND check_date < ${todayBKK}::date
-          ORDER BY check_date DESC LIMIT 7
+            AND business_date < ${businessDate}::date
+          ORDER BY business_date DESC LIMIT 7
         ) recent
       ) hist ON true
       WHERE p.store_id = ${storeId} AND p.is_fresh = true

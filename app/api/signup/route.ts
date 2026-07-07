@@ -1,18 +1,37 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { DEFAULT_COUNTRY_CODE, isValidCountryCode } from "@/lib/countries";
+import { isRateLimited, getClientIp } from "@/lib/rateLimit";
+
+const MAX_SIGNUPS_PER_IP = 5;
+const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
+const VALID_LANGUAGES = ["th", "en", "zh-TW", "vi"];
+const DEFAULT_LANGUAGE = "th";
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password, storeName, businessType, phone } = await request.json();
+    if (isRateLimited(`signup:${getClientIp(request)}`, MAX_SIGNUPS_PER_IP, SIGNUP_WINDOW_MS)) {
+      return NextResponse.json({ error: "มีการสมัครจาก IP นี้บ่อยเกินไป กรุณาลองใหม่ภายหลัง" }, { status: 429 });
+    }
+
+    const {
+      name, email, password, storeName, businessType, phone,
+      businessDayStartTime, businessDayEndTime, country, language,
+    } = await request.json();
 
     if (!name || !email || !password || !storeName || !businessType || !phone) {
       return NextResponse.json({ error: "กรุณากรอกข้อมูลให้ครบทุกช่อง" }, { status: 400 });
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }, { status: 400 });
+    const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const startTime = TIME_RE.test(businessDayStartTime) ? businessDayStartTime : "00:00";
+    const endTime = TIME_RE.test(businessDayEndTime) ? businessDayEndTime : "00:00";
+    const storeCountry = isValidCountryCode(country) ? country : DEFAULT_COUNTRY_CODE;
+    const storeLanguage = VALID_LANGUAGES.includes(language) ? language : DEFAULT_LANGUAGE;
+
+    if (password.length < 8 || !/\d/.test(password)) {
+      return NextResponse.json({ error: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษรและมีตัวเลขอย่างน้อย 1 ตัว" }, { status: 400 });
     }
 
     const existing = await sql`SELECT id FROM users WHERE email = ${email}`;
@@ -31,31 +50,16 @@ export async function POST(request: Request) {
       `;
 
       const [store] = await sql`
-        INSERT INTO stores (owner_id, name, business_type, phone)
-        VALUES (${user.id}, ${storeName}, ${businessType}, ${phone})
+        INSERT INTO stores (owner_id, name, business_type, phone, business_day_start_time, business_day_end_time, country, default_language)
+        VALUES (${user.id}, ${storeName}, ${businessType}, ${phone}, ${startTime}, ${endTime}, ${storeCountry}, ${storeLanguage})
         RETURNING id, name
       `;
 
       return { user, store };
     });
 
-    // สร้าง token login อัตโนมัติหลัง signup
-    const token = jwt.sign(
-      { id: result.user.id, name: result.user.name, email: result.user.email, role: result.user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
-
-    const response = NextResponse.json({ success: true }, { status: 201 });
-    response.cookies.set("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
-
-    return response;
+    // ไม่ auto-login หลังสมัคร — บังคับให้ login รอบแรกด้วยรหัสผ่านที่เพิ่งตั้งเอง
+    return NextResponse.json({ success: true, storeId: result.store.id }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }

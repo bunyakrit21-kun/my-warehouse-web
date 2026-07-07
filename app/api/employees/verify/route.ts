@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import sql from "@/lib/db";
 import { getUser } from "@/lib/auth";
+import { verifyStorePin } from "@/lib/pin";
 
 export async function POST(request: Request) {
   const loggedIn = await getUser();
@@ -17,16 +17,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
     }
 
-    const [employee] = await sql`
-      SELECT id, name, role FROM users
-      WHERE pin = ${pin} AND active = true AND store_id = ${storeId}
-    `;
+    const result = await verifyStorePin(storeId, pin);
 
-    if (!employee) {
+    if (!result.ok) {
+      if (result.reason === "locked") {
+        const mins = Math.ceil(result.retryAfterSeconds / 60);
+        return NextResponse.json({ error: `ใส่ PIN ผิดหลายครั้งเกินไป กรุณาลองใหม่ในอีก ${mins} นาที` }, { status: 429 });
+      }
       return NextResponse.json({ error: "ไม่พบรหัสพนักงานนี้" }, { status: 404 });
     }
 
-    return NextResponse.json({ name: employee.name, role: employee.role });
+    return NextResponse.json({ name: result.user.name, role: result.user.role });
   } catch {
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }

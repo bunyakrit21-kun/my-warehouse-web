@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useT, LangSwitcher } from "@/lib/i18n";
 import PinBoxes from "@/components/PinBoxes";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -87,8 +88,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 block mb-1.5">{t("password")}</label>
-                <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm tracking-normal outline-none focus:border-black focus:bg-white transition-all" required />
+                <PasswordInput value={password} onChange={setPassword} placeholder="••••••••" autoComplete="current-password" required />
               </div>
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}

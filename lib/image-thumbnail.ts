@@ -1,7 +1,9 @@
 import sharp from "sharp";
 
-const THUMB_WIDTH = 160;
-const THUMB_QUALITY = 55;
+// Rendered at 36-44px in every list/grid (stock rows, movement picker); no
+// consumer needs more than this even at 3x device scale.
+const THUMB_WIDTH = 100;
+const THUMB_QUALITY = 45;
 
 // Product photos are stored as full-size base64 data URIs (often 50-300KB each).
 // List endpoints must not return these directly — return this thumbnail instead

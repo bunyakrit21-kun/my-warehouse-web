@@ -5,6 +5,8 @@ import PinBoxes from "@/components/PinBoxes";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useT, LangSwitcher } from "@/lib/i18n";
+import { formatCurrency } from "@/lib/currency";
+import { DEFAULT_COUNTRY_CODE } from "@/lib/countries";
 
 interface Product {
   id: string;
@@ -91,6 +93,7 @@ export default function MovementPage() {
   const [verifyingPin, setVerifyingPin] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
   const [storeId, setStoreId] = useState("");
+  const [country, setCountry] = useState(DEFAULT_COUNTRY_CODE);
 
   const fetchData = useCallback(async () => {
     const paramProductId = searchParams.get("productId");
@@ -111,15 +114,20 @@ export default function MovementPage() {
 
       if (!resolvedStoreId) { setLoading(false); return; }
 
-      const [resP, resM, resC] = await Promise.all([
+      const [resP, resM, resC, resS] = await Promise.all([
         fetch(`/api/products?storeId=${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/movements?storeId=${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/cash-withdrawals?storeId=${resolvedStoreId}`, { cache: "no-store" }),
+        fetch(`/api/stores/${resolvedStoreId}`, { cache: "no-store" }),
       ]);
 
       const productsData: Product[] = await resP.json();
       const movementsRaw = await resM.json();
       const cashRaw = await resC.json();
+      if (resS.ok) {
+        const storeData = await resS.json();
+        if (storeData?.country) setCountry(storeData.country);
+      }
 
       setProducts(productsData);
 
@@ -629,7 +637,7 @@ export default function MovementPage() {
                         <td className="whitespace-nowrap px-6 py-4 font-mono text-xs text-gray-400">{c.id}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-xs text-gray-500">{c.time}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-center font-black text-base text-orange-600">
-                          -{Number(c.amount).toLocaleString()} {t("baht")}
+                          -{formatCurrency(Number(c.amount), country)}
                         </td>
                         <td className="px-6 py-4 text-gray-700 text-xs max-w-xs truncate">{c.reason}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-gray-800 font-semibold text-xs">{c.user}</td>

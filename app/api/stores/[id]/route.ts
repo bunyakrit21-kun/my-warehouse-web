@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
-import { getUser } from "@/lib/auth";
+import { getUser, resolveStoreId } from "@/lib/auth";
+
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const storeId = await resolveStoreId(user, id);
+  if (!storeId) return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
+
+  const [store] = await sql`SELECT id, name, business_type, phone, country FROM stores WHERE id = ${storeId}`;
+  if (!store) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
+  return NextResponse.json(store);
+}
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

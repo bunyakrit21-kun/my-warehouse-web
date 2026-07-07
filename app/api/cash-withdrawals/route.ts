@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
+import { getCurrentBusinessDate } from "@/lib/businessDay";
+import { verifyStorePin } from "@/lib/pin";
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -12,9 +14,10 @@ export async function GET(request: Request) {
 
   try {
     const withdrawals = await sql`
-      SELECT cw.id, cw.amount, cw.reason, cw.employee_pin, cw.created_at,
-             (SELECT name FROM users WHERE pin = cw.employee_pin AND store_id = ${storeId} ORDER BY active DESC LIMIT 1) AS employee_name
+      SELECT cw.id, cw.amount, cw.reason, cw.created_at,
+             u.name AS employee_name
       FROM cash_withdrawals cw
+      LEFT JOIN users u ON u.id = cw.user_id
       WHERE cw.store_id = ${storeId}
       ORDER BY cw.created_at DESC
       LIMIT 50
@@ -39,14 +42,21 @@ export async function POST(request: Request) {
     const storeId = await resolveStoreId(user, bodyStoreId);
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
-    const [employee] = await sql`SELECT id FROM users WHERE pin = ${pin} AND active = true AND store_id = ${storeId}`;
-    if (!employee) {
+    const pinResult = await verifyStorePin(storeId, pin);
+    if (!pinResult.ok) {
+      if (pinResult.reason === "locked") {
+        const mins = Math.ceil(pinResult.retryAfterSeconds / 60);
+        return NextResponse.json({ error: `ใส่ PIN ผิดหลายครั้งเกินไป กรุณาลองใหม่ในอีก ${mins} นาที` }, { status: 429 });
+      }
       return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
     }
+    const employee = pinResult.user;
+
+    const businessDate = await getCurrentBusinessDate(storeId);
 
     await sql`
-      INSERT INTO cash_withdrawals (store_id, amount, reason, employee_pin)
-      VALUES (${storeId}, ${amount}, ${reason}, ${pin})
+      INSERT INTO cash_withdrawals (store_id, amount, reason, user_id, business_date)
+      VALUES (${storeId}, ${amount}, ${reason}, ${employee.id}, ${businessDate})
     `;
 
     return NextResponse.json({ success: true }, { status: 201 });

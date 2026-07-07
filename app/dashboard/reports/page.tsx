@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useT, LangSwitcher } from "@/lib/i18n";
+import { formatCurrency } from "@/lib/currency";
+import { DEFAULT_COUNTRY_CODE } from "@/lib/countries";
 
 interface Summary {
   total_in: number;
@@ -61,6 +63,7 @@ export default function ReportsPage() {
   const [dailyTrend, setDailyTrend] = useState<DailyTrend[]>([]);
   const [loading, setLoading] = useState(true);
   const [storeId, setStoreId] = useState("");
+  const [country, setCountry] = useState(DEFAULT_COUNTRY_CODE);
 
   useEffect(() => {
     async function init() {
@@ -73,6 +76,13 @@ export default function ReportsPage() {
     }
     init();
   }, []);
+
+  useEffect(() => {
+    if (!storeId) return;
+    fetch(`/api/stores/${storeId}`).then(r => r.ok ? r.json() : null).then(store => {
+      if (store?.country) setCountry(store.country);
+    });
+  }, [storeId]);
 
   useEffect(() => {
     if (!storeId) return;
@@ -211,7 +221,7 @@ export default function ReportsPage() {
                 { label: t("totalMovements"), value: summary?.total_movements ?? 0, unit: t("items"), sub: `${t("totalMovementsSub")} ${summary?.total_in ?? 0} / ${t("totalMovementsOut")} ${summary?.total_out ?? 0}`, color: "text-gray-900" },
                 { label: t("statVolumeIn"), value: `+${summary?.volume_in ?? 0}`, unit: "", sub: t("allUnits"), color: "text-green-600" },
                 { label: t("statVolumeOut"), value: `-${summary?.volume_out ?? 0}`, unit: "", sub: t("allUnits"), color: "text-red-500" },
-                { label: t("cashWithdrawStat"), value: `${Number(cashSummary?.total_amount ?? 0).toLocaleString()}`, unit: t("baht"), sub: `${cashSummary?.total_withdrawals ?? 0} ${t("cashTimes")}`, color: "text-orange-500" },
+                { label: t("cashWithdrawStat"), value: formatCurrency(Number(cashSummary?.total_amount ?? 0), country), unit: "", sub: `${cashSummary?.total_withdrawals ?? 0} ${t("cashTimes")}`, color: "text-orange-500" },
               ].map(stat => (
                 <div key={stat.label} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                   <p className="text-xs font-semibold text-gray-500">{stat.label}</p>

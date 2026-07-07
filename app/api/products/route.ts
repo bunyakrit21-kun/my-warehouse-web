@@ -49,20 +49,11 @@ export async function POST(request: Request) {
 
     const imageThumbnail = image ? await createThumbnail(image) : "";
 
-    const product = await sql.begin(async (sql) => {
-      const [last] = await sql`
-        SELECT id FROM products ORDER BY id DESC LIMIT 1 FOR UPDATE
-      `;
-      const maxIdNum = last ? parseInt(last.id.replace(/\D/g, ""), 10) || 0 : 0;
-      const nextId = `PROD${String(maxIdNum + 1).padStart(3, "0")}`;
-
-      const [inserted] = await sql`
-        INSERT INTO products (id, name, category, zone, stock, min_stock, unit, image, image_thumbnail, store_id, is_fresh, par_level)
-        VALUES (${nextId}, ${name}, ${category}, ${zone}, ${stock}, ${minStock}, ${unit}, ${image ?? ""}, ${imageThumbnail}, ${storeId}, ${isFresh ?? false}, ${parLevel ?? null})
-        RETURNING id, name
-      `;
-      return inserted;
-    });
+    const [product] = await sql`
+      INSERT INTO products (id, name, category, zone, stock, min_stock, unit, image, image_thumbnail, store_id, is_fresh, par_level)
+      VALUES ('PROD' || LPAD(nextval('products_id_seq')::text, 3, '0'), ${name}, ${category}, ${zone}, ${stock}, ${minStock}, ${unit}, ${image ?? ""}, ${imageThumbnail}, ${storeId}, ${isFresh ?? false}, ${parLevel ?? null})
+      RETURNING id, name
+    `;
 
     return NextResponse.json({ success: true, product });
   } catch (err) {

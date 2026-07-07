@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
+import { hashPin, findUserByPin } from "@/lib/pin";
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -37,16 +38,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
     }
 
-    const existing = await sql`
-      SELECT id FROM users WHERE pin = ${pin} AND store_id = ${storeId} AND active = true
-    `;
-    if (existing.length > 0) {
+    const existing = await findUserByPin(storeId, pin);
+    if (existing) {
       return NextResponse.json({ error: "PIN นี้ถูกใช้งานแล้วในร้านนี้" }, { status: 400 });
     }
 
+    const hashedPin = await hashPin(pin);
     const [member] = await sql`
       INSERT INTO users (name, role, pin, store_id, active)
-      VALUES (${name}, ${role ?? "staff"}, ${pin}, ${storeId}, true)
+      VALUES (${name}, ${role ?? "staff"}, ${hashedPin}, ${storeId}, true)
       RETURNING id, name, role
     `;
     return NextResponse.json(member, { status: 201 });

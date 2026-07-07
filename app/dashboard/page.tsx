@@ -145,6 +145,18 @@ export default function DashboardPage() {
       box: "bg-amber-50 border-amber-100",
       icon: <span className="text-xl">📊</span>,
     },
+    {
+      key: "cash-closing",
+      label: t("quickCashClosing"),
+      href: `/dashboard/cash-closing${currentStore ? `?storeId=${currentStore.id}` : ""}`,
+      box: "bg-emerald-50 border-emerald-100",
+      icon: (
+        <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12l2.5 2.5L16 9" />
+        </svg>
+      ),
+    },
   ];
 
   return (

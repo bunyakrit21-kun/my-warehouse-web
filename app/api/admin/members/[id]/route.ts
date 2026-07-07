@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser } from "@/lib/auth";
+import { hashPin, findUserByPin } from "@/lib/pin";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,13 +20,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const [target] = await sql`SELECT store_id FROM users WHERE id = ${id} AND active = true`;
       if (!target) return NextResponse.json({ error: "ไม่พบสมาชิก" }, { status: 404 });
 
-      const dup = await sql`
-        SELECT id FROM users
-        WHERE pin = ${body.pin} AND store_id = ${target.store_id} AND active = true AND id != ${id}
-      `;
-      if (dup.length > 0) return NextResponse.json({ error: "PIN นี้ถูกใช้งานแล้วในร้านนี้" }, { status: 400 });
+      const dup = await findUserByPin(target.store_id, body.pin);
+      if (dup && dup.id !== Number(id)) {
+        return NextResponse.json({ error: "PIN นี้ถูกใช้งานแล้วในร้านนี้" }, { status: 400 });
+      }
 
-      await sql`UPDATE users SET pin = ${body.pin} WHERE id = ${id}`;
+      const hashedPin = await hashPin(body.pin);
+      await sql`UPDATE users SET pin = ${hashedPin} WHERE id = ${id}`;
     }
 
     if (body.name !== undefined) {

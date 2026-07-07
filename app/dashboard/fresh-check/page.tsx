@@ -101,9 +101,8 @@ function FreshCheckContent() {
     if (!verifyRes.ok) { setPinError("PIN ไม่ถูกต้อง"); return; }
 
     setSubmitting(true);
-    const todayBKK = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
 
-    // ส่งทุก item ที่กรอกค่าไว้
+    // ส่งทุก item ที่กรอกค่าไว้ (business date คำนวณฝั่ง server เสมอ)
     const promises = items
       .filter(it => values[it.id] !== undefined && values[it.id] !== "")
       .map(it =>
@@ -116,7 +115,6 @@ function FreshCheckContent() {
             remainingQty: Number(values[it.id]),
             wasteQty: 0,
             pin: pinStr,
-            checkDate: todayBKK,
           }),
         })
       );

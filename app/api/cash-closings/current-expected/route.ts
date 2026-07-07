@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
+import { getCashClosingExpected } from "@/lib/cashClosing";
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -11,18 +11,8 @@ export async function GET(request: Request) {
   if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
   try {
-    const history = await sql`
-      SELECT m.id, TO_CHAR(m.created_at, 'HH24:MI น.') as time, m.type,
-             p.name as "itemName", m.qty, m.note,
-             u.name as "user"
-      FROM movements m
-      LEFT JOIN products p ON p.id = m.product_id
-      LEFT JOIN users u ON u.id = m.user_id
-      WHERE m.store_id = ${storeId}
-      ORDER BY m.created_at DESC
-      LIMIT 10
-    `;
-    return NextResponse.json(history);
+    const data = await getCashClosingExpected(storeId);
+    return NextResponse.json(data);
   } catch {
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }
