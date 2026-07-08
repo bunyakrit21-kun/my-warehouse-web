@@ -34,6 +34,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await sql`UPDATE users SET name = ${body.name.trim()} WHERE id = ${id}`;
     }
 
+    if (body.duty !== undefined) {
+      // หน้าที่ประจำตัว เช่น ครัว / หน้าบ้าน / กลาง — เป็นค่าเริ่มต้นเวลาใส่ชื่อลงตารางเวร
+      await sql`UPDATE users SET duty = ${body.duty || null} WHERE id = ${id}`;
+    }
+
     if (body.role !== undefined) {
       const allowed = ["staff", "manager", "admin"];
       if (!allowed.includes(body.role)) return NextResponse.json({ error: "role ไม่ถูกต้อง" }, { status: 400 });

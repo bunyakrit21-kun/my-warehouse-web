@@ -50,9 +50,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: EDIT_WINDOW_ERROR }, { status: 403 });
     }
 
-    if (String(existing.source ?? "").startsWith("cash_closing")) {
+    if (existing.source && existing.source !== "manual") {
       return NextResponse.json(
-        { error: "รายการนี้มาจากการปิดยอดเงินสด แก้ไขโดยตรงไม่ได้ ต้องแก้ที่ประวัติปิดยอดแทน" },
+        { error: "รายการนี้ระบบสร้างอัตโนมัติ (ปิดยอด/เบิกเงิน) แก้ที่ต้นทางแทน — ประวัติปิดยอด หรือรายการเบิกในหน้าเบิก-รับ" },
         { status: 400 }
       );
     }
@@ -143,9 +143,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!isWithinEditWindow(existing.created_at)) {
       return NextResponse.json({ error: EDIT_WINDOW_ERROR }, { status: 403 });
     }
-    if (String(existing.source ?? "").startsWith("cash_closing")) {
+    if (existing.source && existing.source !== "manual") {
       return NextResponse.json(
-        { error: "รายการนี้มาจากการปิดยอดเงินสด ลบโดยตรงไม่ได้ ต้องแก้ที่ประวัติปิดยอดแทน" },
+        { error: "รายการนี้ระบบสร้างอัตโนมัติ (ปิดยอด/เบิกเงิน) ลบที่ต้นทางแทน — ประวัติปิดยอด หรือรายการเบิกในหน้าเบิก-รับ" },
         { status: 400 }
       );
     }

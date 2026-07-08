@@ -20,13 +20,19 @@ interface Entry {
   user_id: number;
   user_name: string;
   checked_in_at: string | null;
+  duty: string | null;
+  user_duty?: string | null;
 }
 
 interface Employee {
   id: number;
   name: string;
   pin: string;
+  duty: string | null;
 }
+
+// หน้าที่มาตรฐาน — เลือกเร็วในตารางเวร (พิมพ์เองได้ผ่าน "อื่นๆ…")
+const DUTY_PRESETS = ["ครัว", "หน้าบ้าน", "กลาง"];
 
 const SHIFT_COLORS: Record<string, { bg: string; text: string; border: string; chip: string }> = {
   blue:   { bg: "bg-blue-50",   text: "text-blue-800",   border: "border-blue-200",   chip: "bg-blue-100 text-blue-800" },
@@ -168,10 +174,20 @@ function ScheduleContent() {
           user_id: emp.id,
           user_name: emp.name,
           checked_in_at: null,
+          duty: data.duty ?? emp.duty ?? null,
         }]);
       }
     }
     setSaving(false);
+  }
+
+  async function changeDuty(entry: Entry, duty: string) {
+    await fetch("/api/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: entry.id, storeId, duty }),
+    });
+    setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, duty: duty || null } : e));
   }
 
   async function toggleAttendance(entry: Entry, ev: React.MouseEvent) {
@@ -512,6 +528,9 @@ function ScheduleContent() {
                                           `}
                                         >
                                           {e.checked_in_at ? "✓ " : ""}{e.user_name}
+                                          {(e.duty ?? e.user_duty) && (
+                                            <span className="opacity-70 font-normal"> · {e.duty ?? e.user_duty}</span>
+                                          )}
                                         </button>
                                       ))}
                                     </div>
@@ -586,32 +605,61 @@ function ScheduleContent() {
                 <div className="space-y-1.5">
                   {filteredEmployees.map(emp => {
                     const selected = assignedIds.has(emp.id);
+                    const entry = modal ? entriesOn(modal.date, modal.shift.id).find(e => e.user_id === emp.id) : undefined;
+                    const currentDuty = entry?.duty ?? "";
                     return (
-                      <button
-                        key={emp.id}
-                        onClick={() => toggleEmployee(emp)}
-                        disabled={saving}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all
-                          ${selected
-                            ? "border-black bg-black text-white"
-                            : "border-gray-100 bg-gray-50 text-gray-700 hover:border-gray-300 hover:bg-white"
-                          } disabled:opacity-60`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0
-                            ${selected ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"}`}>
-                            {emp.name[0]}
+                      <div key={emp.id}>
+                        <button
+                          onClick={() => toggleEmployee(emp)}
+                          disabled={saving}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all
+                            ${selected
+                              ? "border-black bg-black text-white"
+                              : "border-gray-100 bg-gray-50 text-gray-700 hover:border-gray-300 hover:bg-white"
+                            } disabled:opacity-60 ${selected ? "rounded-b-none" : ""}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0
+                              ${selected ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"}`}>
+                              {emp.name[0]}
+                            </div>
+                            <div className="text-left">
+                              <p className="text-sm font-semibold leading-tight">{emp.name}</p>
+                              <p className={`text-xs ${selected ? "text-white/60" : "text-gray-400"}`}>
+                                {emp.duty ? `หน้าที่ประจำ: ${emp.duty}` : "ยังไม่ระบุหน้าที่ประจำ"}
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-left">
-                            <p className="text-sm font-semibold leading-tight">{emp.name}</p>
-                            <p className={`text-xs ${selected ? "text-white/60" : "text-gray-400"}`}>PIN: {emp.pin}</p>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs flex-shrink-0 transition-all
+                            ${selected ? "border-white bg-white text-black" : "border-gray-300"}`}>
+                            {selected && "✓"}
                           </div>
-                        </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs flex-shrink-0 transition-all
-                          ${selected ? "border-white bg-white text-black" : "border-gray-300"}`}>
-                          {selected && "✓"}
-                        </div>
-                      </button>
+                        </button>
+                        {selected && entry && (
+                          <div className="flex items-center gap-1.5 px-3 py-2 rounded-b-xl border-2 border-t-0 border-black bg-gray-900">
+                            <span className="text-[10px] font-bold text-white/60 shrink-0">หน้าที่กะนี้:</span>
+                            {DUTY_PRESETS.map(d => (
+                              <button key={d} type="button" disabled={saving}
+                                onClick={() => changeDuty(entry, currentDuty === d ? "" : d)}
+                                className={`text-[11px] font-bold px-2 py-1 rounded-lg transition-all ${
+                                  currentDuty === d ? "bg-white text-black" : "bg-white/10 text-white/70 hover:bg-white/20"
+                                }`}>
+                                {d}
+                              </button>
+                            ))}
+                            <button type="button" disabled={saving}
+                              onClick={() => {
+                                const v = window.prompt("ระบุหน้าที่เอง", currentDuty && !DUTY_PRESETS.includes(currentDuty) ? currentDuty : "");
+                                if (v !== null) changeDuty(entry, v.trim());
+                              }}
+                              className={`text-[11px] font-bold px-2 py-1 rounded-lg transition-all ${
+                                currentDuty && !DUTY_PRESETS.includes(currentDuty) ? "bg-white text-black" : "bg-white/10 text-white/70 hover:bg-white/20"
+                              }`}>
+                              {currentDuty && !DUTY_PRESETS.includes(currentDuty) ? currentDuty : "อื่นๆ…"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>

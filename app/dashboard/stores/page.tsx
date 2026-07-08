@@ -16,10 +16,13 @@ interface Store {
   logo_thumbnail: string | null;
 }
 
+const DUTY_PRESETS = ["ครัว", "หน้าบ้าน", "กลาง"];
+
 interface Member {
   id: number;
   name: string;
   role: string;
+  duty: string | null;
 }
 
 export default function StoresPage() {
@@ -46,6 +49,7 @@ export default function StoresPage() {
   const [newPin, setNewPin] = useState(["", "", "", ""]);
   const [newRole, setNewRole] = useState("staff");
   const [customRole, setCustomRole] = useState("");
+  const [newDuty, setNewDuty] = useState("");
   const [addingMember, setAddingMember] = useState(false);
   const [memberError, setMemberError] = useState("");
 
@@ -154,13 +158,21 @@ export default function StoresPage() {
     const res = await fetch("/api/admin/members", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, pin: newPin.join(""), role: roleToSave, storeId: selectedStoreId }),
+      body: JSON.stringify({ name: newName, pin: newPin.join(""), role: roleToSave, duty: newDuty || null, storeId: selectedStoreId }),
     });
     const data = await res.json();
     setAddingMember(false);
     if (!res.ok) return setMemberError(data.error);
     setNewName(""); setNewPin(["", "", "", ""]); setNewRole("staff"); setCustomRole("");
     fetchMembers(selectedStoreId);
+  };
+
+  const changeMemberDuty = async (id: number, duty: string) => {
+    const res = await fetch(`/api/admin/members/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ duty: duty || null }),
+    });
+    if (res.ok) setMembers(prev => prev.map(m => m.id === id ? { ...m, duty: duty || null } : m));
   };
 
   const handleDeleteMember = async (id: number, memberName: string) => {
@@ -323,6 +335,14 @@ export default function StoresPage() {
               <form onSubmit={handleAddMember} className="flex flex-col gap-2 mb-5">
                 <input type="text" placeholder={t("memberNamePH")} value={newName} onChange={e => setNewName(e.target.value)}
                   className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" required />
+                <div className="flex gap-2">
+                  <input type="text" list="duty-presets" placeholder="หน้าที่ เช่น ครัว / หน้าบ้าน / กลาง"
+                    value={newDuty} onChange={e => setNewDuty(e.target.value)}
+                    className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" />
+                  <datalist id="duty-presets">
+                    {DUTY_PRESETS.map(d => <option key={d} value={d} />)}
+                  </datalist>
+                </div>
                 <select
                   value={newRole}
                   onChange={e => { setNewRole(e.target.value); setCustomRole(""); }}
@@ -370,10 +390,31 @@ export default function StoresPage() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900">{m.name}</p>
-                            <p className="text-xs text-gray-400">{ROLE_LABEL[m.role] ?? m.role}</p>
+                            <p className="text-xs text-gray-400">
+                              {ROLE_LABEL[m.role] ?? m.role}
+                              {m.duty ? ` · ${m.duty}` : ""}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          <select
+                            value={m.duty && DUTY_PRESETS.includes(m.duty) ? m.duty : m.duty ? "__custom" : ""}
+                            onChange={e => {
+                              if (e.target.value === "__custom_new") {
+                                const v = window.prompt("ระบุหน้าที่เอง", m.duty ?? "");
+                                if (v !== null) changeMemberDuty(m.id, v.trim());
+                              } else if (e.target.value !== "__custom") {
+                                changeMemberDuty(m.id, e.target.value);
+                              }
+                            }}
+                            className="text-xs font-semibold text-gray-600 border border-gray-200 bg-white px-2 py-1 rounded-lg outline-none focus:border-black"
+                            title="หน้าที่ประจำ — ใช้เป็นค่าเริ่มต้นในตารางเวร"
+                          >
+                            <option value="">หน้าที่: ไม่ระบุ</option>
+                            {DUTY_PRESETS.map(d => <option key={d} value={d}>{d}</option>)}
+                            {m.duty && !DUTY_PRESETS.includes(m.duty) && <option value="__custom">{m.duty}</option>}
+                            <option value="__custom_new">พิมพ์เอง…</option>
+                          </select>
                           <button
                             onClick={() => {
                               setPinResetId(pinResetId === m.id ? null : m.id);

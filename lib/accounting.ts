@@ -141,3 +141,72 @@ export async function postDayCloseTransfer(
     VALUES (${storeId}, ${cash.id}, ${keep.id}, 'transfer', ${amount}, ${businessDate}::date, 'cash_closing_dayclose', ${cashClosingId}, ${store.owner_id}, 'เก็บเงินออกจากเก๊ะ (ปิดร้าน)')
   `;
 }
+
+/**
+ * เบิกเงินจากเก๊ะ → ลงบัญชีเป็นรายจ่ายทันที (source='cash_withdrawal') บนบัญชีเงินสด
+ * ใช้หมวดหมู่ระบบ "เบิกเงินจากเก๊ะ" (สร้างให้อัตโนมัติครั้งแรก)
+ *
+ * ไม่ชนกับการโพสต์รายรับตอนปิดยอด: รายรับปิดยอดเป็นแบบ balance-relative
+ * (counted − balance) — การหักยอดเงินสดตอนเบิกทำให้รายรับที่โพสต์กลายเป็นยอดขายเต็ม
+ * ส่วนรายจ่ายเบิกเงินแยกบรรทัดของมันเอง ผลรวมสุทธิยังเท่าเงินในลิ้นชักเสมอ
+ */
+export async function postWithdrawalTransaction(
+  tx: SqlClient, storeId: number | string, withdrawalId: number, amount: number,
+  businessDate: string, note?: string | null
+): Promise<void> {
+  if (amount <= 0) return;
+
+  const [store] = await tx`SELECT owner_id FROM stores WHERE id = ${storeId}`;
+  if (!store) return;
+
+  const [cash] = await tx`
+    SELECT id FROM accounts WHERE store_id = ${storeId} AND is_default_cash = true AND archived_at IS NULL
+    FOR UPDATE
+  `;
+  if (!cash) return;
+
+  let [category] = await tx`
+    SELECT id FROM transaction_categories
+    WHERE store_id = ${storeId} AND type = 'expense' AND name = 'เบิกเงินจากเก๊ะ'
+    LIMIT 1
+  `;
+  if (!category) {
+    [category] = await tx`
+      INSERT INTO transaction_categories (store_id, name, type, icon, is_system)
+      VALUES (${storeId}, 'เบิกเงินจากเก๊ะ', 'expense', 'box', true)
+      RETURNING id
+    `;
+  }
+
+  await tx`UPDATE accounts SET current_balance = current_balance - ${amount} WHERE id = ${cash.id}`;
+  await tx`
+    INSERT INTO transactions (store_id, account_id, category_id, type, amount, business_date, source, source_ref_id, created_by, note)
+    VALUES (${storeId}, ${cash.id}, ${category.id}, 'expense', ${amount}, ${businessDate}::date, 'cash_withdrawal', ${withdrawalId}, ${store.owner_id}, ${note ?? null})
+  `;
+}
+
+/** ปรับ/ลบรายการบัญชีที่ผูกกับการเบิกเงิน เมื่อการเบิกถูกแก้หรือลบย้อนหลัง */
+export async function syncWithdrawalTransaction(
+  tx: SqlClient, withdrawalId: number, newAmount: number | null, newNote?: string | null
+): Promise<void> {
+  const [linked] = await tx`
+    SELECT id, amount, account_id FROM transactions
+    WHERE source = 'cash_withdrawal' AND source_ref_id = ${withdrawalId}
+    FOR UPDATE
+  `;
+  if (!linked) return;
+
+  if (newAmount === null) {
+    // ลบการเบิก → คืนเงินเข้าบัญชีแล้วลบรายการ
+    await tx`UPDATE accounts SET current_balance = current_balance + ${Number(linked.amount)} WHERE id = ${linked.account_id}`;
+    await tx`DELETE FROM transaction_edit_history WHERE transaction_id = ${linked.id}`;
+    await tx`DELETE FROM transactions WHERE id = ${linked.id}`;
+    return;
+  }
+
+  const delta = newAmount - Number(linked.amount);
+  if (delta !== 0) {
+    await tx`UPDATE accounts SET current_balance = current_balance - ${delta} WHERE id = ${linked.account_id}`;
+  }
+  await tx`UPDATE transactions SET amount = ${newAmount}${newNote !== undefined ? tx`, note = ${newNote}` : tx``} WHERE id = ${linked.id}`;
+}

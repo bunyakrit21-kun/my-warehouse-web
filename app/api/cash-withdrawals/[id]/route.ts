@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 import { isWithinEditWindow, EDIT_WINDOW_ERROR, verifyMasterPassword, logRecordEdit } from "@/lib/recordEdit";
+import { syncWithdrawalTransaction } from "@/lib/accounting";
 
 /**
  * แก้ไข/ลบรายการเบิกเงินย้อนหลัง (ภายใน 7 วัน, ต้องยืนยันรหัสผ่านหลัก)
@@ -52,6 +53,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const [w] = await sql`SELECT * FROM cash_withdrawals WHERE id = ${id} FOR UPDATE`;
       if (!w) throw new Error("ไม่พบรายการ");
       await sql`UPDATE cash_withdrawals SET amount = ${newAmount}, reason = ${reason} WHERE id = ${id}`;
+      await syncWithdrawalTransaction(sql, Number(id), newAmount, reason);
       await logRecordEdit(sql, {
         storeId: w.store_id, recordType: "cash_withdrawal", recordId: w.id, action: "edit", editedBy: user.id,
         oldValues: { amount: Number(w.amount), reason: w.reason },
@@ -98,6 +100,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         storeId: w.store_id, recordType: "cash_withdrawal", recordId: w.id, action: "delete", editedBy: user.id,
         oldValues: { amount: Number(w.amount), reason: w.reason, userId: w.user_id },
       });
+      await syncWithdrawalTransaction(sql, Number(id), null);
       await sql`DELETE FROM cash_withdrawals WHERE id = ${id}`;
     });
 

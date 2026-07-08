@@ -4,6 +4,7 @@ import { getUser, resolveStoreId } from "@/lib/auth";
 import { getCurrentBusinessDate } from "@/lib/businessDay";
 import { verifyStorePin } from "@/lib/pin";
 import { createThumbnail } from "@/lib/image-thumbnail";
+import { postWithdrawalTransaction } from "@/lib/accounting";
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -56,10 +57,15 @@ export async function POST(request: Request) {
     const businessDate = await getCurrentBusinessDate(storeId);
     const photoThumbnail = photo ? await createThumbnail(photo) : null;
 
-    await sql`
-      INSERT INTO cash_withdrawals (store_id, amount, reason, user_id, business_date, photo, photo_thumbnail)
-      VALUES (${storeId}, ${amount}, ${reason}, ${employee.id}, ${businessDate}, ${photo ?? null}, ${photoThumbnail})
-    `;
+    await sql.begin(async (sql) => {
+      const [row] = await sql`
+        INSERT INTO cash_withdrawals (store_id, amount, reason, user_id, business_date, photo, photo_thumbnail)
+        VALUES (${storeId}, ${amount}, ${reason}, ${employee.id}, ${businessDate}, ${photo ?? null}, ${photoThumbnail})
+        RETURNING id
+      `;
+      // ลงบัญชีเป็นรายจ่ายทันที — หมายเหตุ: เหตุผล + ชื่อคนเบิก
+      await postWithdrawalTransaction(sql, storeId, row.id, Number(amount), businessDate, `${reason} (${employee.name})`);
+    });
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch {

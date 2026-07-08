@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   try {
     const members = await sql`
-      SELECT id, name, role FROM users
+      SELECT id, name, role, duty FROM users
       WHERE active = true AND store_id = ${resolvedStoreId}
       ORDER BY name ASC
     `;
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   try {
-    const { name, pin, role, storeId } = await request.json();
+    const { name, pin, role, storeId, duty } = await request.json();
 
     if (!name || !/^\d{4}$/.test(pin) || !storeId) {
       return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
@@ -45,9 +45,9 @@ export async function POST(request: Request) {
 
     const hashedPin = await hashPin(pin);
     const [member] = await sql`
-      INSERT INTO users (name, role, pin, store_id, active)
-      VALUES (${name}, ${role ?? "staff"}, ${hashedPin}, ${storeId}, true)
-      RETURNING id, name, role
+      INSERT INTO users (name, role, pin, store_id, active, duty)
+      VALUES (${name}, ${role ?? "staff"}, ${hashedPin}, ${storeId}, true, ${duty || null})
+      RETURNING id, name, role, duty
     `;
     return NextResponse.json(member, { status: 201 });
   } catch {

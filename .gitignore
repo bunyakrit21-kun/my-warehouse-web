@@ -43,3 +43,6 @@ next-env.d.ts
 # claude code
 .agents/
 skills-lock.json
+
+# DB backups (มีรหัสผ่าน/PIN hash — ห้าม commit)
+backups/
