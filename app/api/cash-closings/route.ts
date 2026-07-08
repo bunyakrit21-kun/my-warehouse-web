@@ -3,7 +3,7 @@ import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 import { getCashClosingExpected } from "@/lib/cashClosing";
 import { verifyStorePin } from "@/lib/pin";
-import { postCashClosingTransaction } from "@/lib/accounting";
+import { postCashClosingTransaction, postDayCloseTransfer } from "@/lib/accounting";
 
 const VALID_METHODS = ["quick", "detailed"];
 const VALID_REASONS = ["wrong_change", "missed_withdrawal_log", "counterfeit_damaged", "other"];
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   try {
     const {
       storeId: bodyStoreId, shiftId, cashSales, countedAmount, countMethod,
-      denominationBreakdown, discrepancyReason, discrepancyNote, pin,
+      denominationBreakdown, discrepancyReason, discrepancyNote, pin, isDayClose,
     } = await request.json();
 
     if (countedAmount === undefined || countedAmount === null || !Number.isFinite(Number(countedAmount)) || Number(countedAmount) < 0) {
@@ -44,11 +44,13 @@ export async function POST(request: Request) {
     }
     const employee = pinResult.user;
 
-    const { businessDate, shift, shifts, openingFloat, withdrawalsTotal } = await getCashClosingExpected(storeId);
+    const { businessDate, shift, shifts, openingFloat, withdrawalsTotal, drawerFloat, suggestDayClose } = await getCashClosingExpected(storeId);
     const salesNum = Number(cashSales) || 0;
     const expectedAmount = openingFloat + salesNum - withdrawalsTotal;
     const difference = Number(countedAmount) - expectedAmount;
     const resolvedShiftId = shiftId ?? shift?.id ?? null;
+    // ปิดร้านประจำวัน: client ส่งมาชัดๆ ได้ ไม่ส่งมาก็ใช้ค่าที่ระบบเดา (กะสุดท้ายตามเวลา)
+    const dayClose = typeof isDayClose === "boolean" ? isDayClose : suggestDayClose;
 
     // Flag when whoever confirmed with their PIN wasn't on the schedule for this shift —
     // but only if the shift actually has assignments (stores without a schedule aren't flagged).
@@ -66,12 +68,12 @@ export async function POST(request: Request) {
         INSERT INTO cash_closings (
           store_id, shift_id, business_date, opening_float, cash_sales, withdrawals_total,
           expected_amount, counted_amount, difference, count_method, denomination_breakdown,
-          discrepancy_reason, discrepancy_note, closed_by_user_id, schedule_mismatch
+          discrepancy_reason, discrepancy_note, closed_by_user_id, schedule_mismatch, is_day_close
         ) VALUES (
           ${storeId}, ${resolvedShiftId}, ${businessDate}::date, ${openingFloat}, ${salesNum}, ${withdrawalsTotal},
           ${expectedAmount}, ${countedAmount}, ${difference}, ${countMethod},
           ${denominationBreakdown ? sql.json(denominationBreakdown) : null},
-          ${discrepancyReason ?? null}, ${discrepancyNote ?? null}, ${employee.id}, ${scheduleMismatch}
+          ${discrepancyReason ?? null}, ${discrepancyNote ?? null}, ${employee.id}, ${scheduleMismatch}, ${dayClose}
         )
         RETURNING id
       `;
@@ -92,6 +94,12 @@ export async function POST(request: Request) {
           const shiftName = shifts.find(s => s.id === resolvedShiftId)?.name ?? null;
           await postCashClosingTransaction(sql, storeId, row.id, ledgerAmount, businessDate, shiftName);
         }
+      }
+
+      // ปิดร้าน: เก็บเงินส่วนที่เกิน "เงินในเก๊ะ" ออกจากลิ้นชัก → บัญชี "เงินเก็บ"
+      // ยอดเงินสดในบัญชีจะเหลือเท่า drawerFloat พร้อมเริ่มวันใหม่
+      if (dayClose) {
+        await postDayCloseTransfer(sql, storeId, row.id, Number(countedAmount) - drawerFloat, businessDate);
       }
 
       return row.id;

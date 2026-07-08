@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 import { syncCashClosingTransaction } from "@/lib/accounting";
-import { isWithinEditWindow, EDIT_WINDOW_ERROR } from "@/lib/recordEdit";
+import { isWithinEditWindow, EDIT_WINDOW_ERROR, verifyMasterPassword, logRecordEdit } from "@/lib/recordEdit";
 import { isRateLimited } from "@/lib/rateLimit";
 
 const VALID_METHODS = ["quick", "detailed"];
@@ -147,5 +147,88 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ success: true, difference: result.difference, unchanged: result.unchanged });
   } catch {
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
+  }
+}
+
+/**
+ * ลบรายการปิดยอด (ภายใน 7 วัน + รหัสผ่านหลัก) — ลบได้เฉพาะ "รายการล่าสุดของร้าน"
+ * เท่านั้น เพราะยอดตั้งต้นของแต่ละกะส่งต่อกันเป็นโซ่ ลบตัวกลางจะทำให้ยอดกะถัดไปผิดหมด
+ * ใช้สำหรับกรณีปิดยอดพลาดแล้วอยากลบเพื่อปิดใหม่ (undo)
+ *
+ * ย้อนผลทางบัญชีให้ครบ: รายการรายรับ (source='cash_closing') และรายการโอนเก็บเงิน
+ * ปิดร้าน (source='cash_closing_dayclose') ถูกลบพร้อมปรับยอดบัญชีคืน แล้วบันทึก audit
+ */
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const { password } = await request.json();
+
+    const auth = await verifyMasterPassword(user, password);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+    const [existing] = await sql`SELECT store_id, created_at FROM cash_closings WHERE id = ${id}`;
+    if (!existing) return NextResponse.json({ error: "ไม่พบรายการปิดยอด" }, { status: 404 });
+
+    const resolvedStoreId = await resolveStoreId(user, String(existing.store_id));
+    if (!resolvedStoreId || Number(resolvedStoreId) !== existing.store_id) {
+      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
+    }
+    if (!isWithinEditWindow(existing.created_at)) {
+      return NextResponse.json({ error: EDIT_WINDOW_ERROR }, { status: 403 });
+    }
+
+    const [newer] = await sql`
+      SELECT id FROM cash_closings
+      WHERE store_id = ${existing.store_id} AND created_at > ${existing.created_at}
+      LIMIT 1
+    `;
+    if (newer) {
+      return NextResponse.json(
+        { error: "ลบได้เฉพาะรายการปิดยอดล่าสุดเท่านั้น (ยอดตั้งต้นของกะถัดไปอ้างจากรายการนี้)" },
+        { status: 409 }
+      );
+    }
+
+    await sql.begin(async (sql) => {
+      const [row] = await sql`SELECT * FROM cash_closings WHERE id = ${id} FOR UPDATE`;
+      if (!row) throw new Error("ไม่พบรายการปิดยอด");
+
+      // ย้อนรายการบัญชีที่ผูกกับการปิดยอดนี้ (รายรับ + โอนเก็บเงินปิดร้าน)
+      const linked = await sql`
+        SELECT id, type, amount, account_id, transfer_to_account_id FROM transactions
+        WHERE source IN ('cash_closing', 'cash_closing_dayclose') AND source_ref_id = ${id}
+        FOR UPDATE
+      `;
+      for (const tx of linked) {
+        const amount = Number(tx.amount);
+        if (tx.type === "income") {
+          await sql`UPDATE accounts SET current_balance = current_balance - ${amount} WHERE id = ${tx.account_id}`;
+        } else if (tx.type === "transfer") {
+          await sql`UPDATE accounts SET current_balance = current_balance + ${amount} WHERE id = ${tx.account_id}`;
+          await sql`UPDATE accounts SET current_balance = current_balance - ${amount} WHERE id = ${tx.transfer_to_account_id}`;
+        }
+        await sql`DELETE FROM transaction_edit_history WHERE transaction_id = ${tx.id}`;
+        await sql`DELETE FROM transactions WHERE id = ${tx.id}`;
+      }
+
+      await logRecordEdit(sql, {
+        storeId: row.store_id, recordType: "cash_closing", recordId: row.id, action: "delete", editedBy: user.id,
+        oldValues: {
+          businessDate: String(row.business_date), shiftId: row.shift_id,
+          openingFloat: Number(row.opening_float), countedAmount: Number(row.counted_amount),
+          difference: Number(row.difference), isDayClose: !!row.is_day_close,
+          closedByUserId: row.closed_by_user_id,
+        },
+      });
+      await sql`DELETE FROM cash_closings WHERE id = ${id}`;
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    return NextResponse.json({ error: message === "ไม่พบรายการปิดยอด" ? message : "เกิดข้อผิดพลาด" }, { status: 400 });
   }
 }

@@ -75,9 +75,69 @@ export async function syncCashClosingTransaction(
     WHERE t.source = 'cash_closing' AND t.source_ref_id = ${cashClosingId}
     FOR UPDATE
   `;
+  // (income เท่านั้น — transfer ปิดร้านใช้ source='cash_closing_dayclose' จัดการแยกด้านล่าง)
   if (!linked) return;
 
   const newAmount = Number(linked.amount) + countedAmountDelta;
   await tx`UPDATE accounts SET current_balance = current_balance + ${countedAmountDelta} WHERE id = ${linked.account_id}`;
   await tx`UPDATE transactions SET amount = ${newAmount} WHERE id = ${linked.id}`;
+
+  // ถ้าเป็นการปิดร้าน (มี transfer เก็บเงินออก) เงินที่เก็บออกก็เปลี่ยนตามยอดนับใหม่ด้วย
+  // — ลิ้นชักหลังปิดร้านต้องเหลือเท่าเงินในเก๊ะเสมอ
+  const [dayclose] = await tx`
+    SELECT t.id, t.amount, t.account_id, t.transfer_to_account_id FROM transactions t
+    WHERE t.source = 'cash_closing_dayclose' AND t.source_ref_id = ${cashClosingId}
+    FOR UPDATE
+  `;
+  if (dayclose) {
+    const newTransfer = Number(dayclose.amount) + countedAmountDelta;
+    await tx`UPDATE accounts SET current_balance = current_balance - ${countedAmountDelta} WHERE id = ${dayclose.account_id}`;
+    await tx`UPDATE accounts SET current_balance = current_balance + ${countedAmountDelta} WHERE id = ${dayclose.transfer_to_account_id}`;
+    await tx`UPDATE transactions SET amount = ${newTransfer} WHERE id = ${dayclose.id}`;
+  }
+}
+
+/**
+ * ปิดร้านประจำวัน (is_day_close): เงินส่วนที่เกิน "เงินในเก๊ะ" ถูกเก็บออกจากลิ้นชัก
+ * บันทึกเป็นรายการโอนจากบัญชีเงินสด → บัญชีระบบ "เงินเก็บ" (สร้างให้อัตโนมัติครั้งแรก)
+ * ผลคือยอดบัญชีเงินสดกลับมาเท่ากับเงินในเก๊ะ พร้อมเริ่มวันใหม่ — ทำให้การโพสต์รายรับ
+ * แบบ balance-relative ของวันถัดไปถูกต้องต่อเนื่อง ส่วน "เงินเก็บ" สะสมเงินที่เจ้าของ
+ * เก็บออกไป ใช้จ่าย/โอนต่อได้ในหน้าบัญชี
+ *
+ * ใช้ source='cash_closing_dayclose' แยกจากรายการรายรับ (source='cash_closing')
+ * เพื่อให้ syncCashClosingTransaction แก้ยอดแยกกันได้ถูกตัว
+ */
+export async function postDayCloseTransfer(
+  tx: SqlClient, storeId: number | string, cashClosingId: number, amount: number, businessDate: string
+): Promise<void> {
+  if (amount <= 0) return;
+
+  const [store] = await tx`SELECT owner_id FROM stores WHERE id = ${storeId}`;
+  if (!store) return;
+
+  const [cash] = await tx`
+    SELECT id FROM accounts WHERE store_id = ${storeId} AND is_default_cash = true AND archived_at IS NULL
+    FOR UPDATE
+  `;
+  if (!cash) return;
+
+  let [keep] = await tx`
+    SELECT id FROM accounts
+    WHERE store_id = ${storeId} AND is_system = true AND is_default_cash = false AND archived_at IS NULL
+    LIMIT 1 FOR UPDATE
+  `;
+  if (!keep) {
+    [keep] = await tx`
+      INSERT INTO accounts (store_id, name, account_type, is_system, is_default_cash)
+      VALUES (${storeId}, 'เงินเก็บ', 'other', true, false)
+      RETURNING id
+    `;
+  }
+
+  await tx`UPDATE accounts SET current_balance = current_balance - ${amount} WHERE id = ${cash.id}`;
+  await tx`UPDATE accounts SET current_balance = current_balance + ${amount} WHERE id = ${keep.id}`;
+  await tx`
+    INSERT INTO transactions (store_id, account_id, transfer_to_account_id, type, amount, business_date, source, source_ref_id, created_by, note)
+    VALUES (${storeId}, ${cash.id}, ${keep.id}, 'transfer', ${amount}, ${businessDate}::date, 'cash_closing_dayclose', ${cashClosingId}, ${store.owner_id}, 'เก็บเงินออกจากเก๊ะ (ปิดร้าน)')
+  `;
 }

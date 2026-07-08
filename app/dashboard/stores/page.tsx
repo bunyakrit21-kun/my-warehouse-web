@@ -11,6 +11,7 @@ interface Store {
   business_type: string;
   phone: string;
   business_day_start_time: string | null;
+  drawer_float: string | null;
   business_day_end_time: string | null;
   logo_thumbnail: string | null;
 }
@@ -34,6 +35,7 @@ export default function StoresPage() {
   const [editBusinessType, setEditBusinessType] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editStartTime, setEditStartTime] = useState("00:00");
+  const [editDrawerFloat, setEditDrawerFloat] = useState("0");
   const [editEndTime, setEditEndTime] = useState("00:00");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoChanged, setLogoChanged] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export default function StoresPage() {
     setEditBusinessType(s.business_type);
     setEditPhone(s.phone ?? "");
     setEditStartTime(s.business_day_start_time?.slice(0, 5) ?? "00:00");
+    setEditDrawerFloat(s.drawer_float != null ? String(Number(s.drawer_float)) : "0");
     setEditEndTime(s.business_day_end_time?.slice(0, 5) ?? "00:00");
     setLogoPreview(s.logo_thumbnail ?? null);
     setLogoChanged(null);
@@ -127,6 +130,7 @@ export default function StoresPage() {
       body: JSON.stringify({
         name: editName, business_type: editBusinessType, phone: editPhone,
         businessDayStartTime: editStartTime, businessDayEndTime: editEndTime,
+        drawerFloat: Number(editDrawerFloat) || 0,
         ...(logoChanged !== null ? { logo: logoChanged } : {}),
       }),
     });
@@ -283,6 +287,13 @@ export default function StoresPage() {
                     </div>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-1.5">{t("businessHoursHelp")}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">{t("drawerFloatLabel")}</label>
+                  <input type="number" min={0} step="1" value={editDrawerFloat}
+                    onChange={e => setEditDrawerFloat(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-black focus:bg-white transition-all" />
+                  <p className="text-[11px] text-gray-400 mt-1.5">{t("drawerFloatHelp")}</p>
                 </div>
 
                 {storeMsg && (

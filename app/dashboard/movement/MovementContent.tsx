@@ -378,6 +378,14 @@ export default function MovementPage() {
             <LangSwitcher />
             {isStaff && (
               <Link
+                href={`/dashboard/cash-closing${storeId ? `?storeId=${storeId}` : ""}`}
+                className="flex items-center gap-1.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 text-sm font-semibold hover:bg-emerald-100 transition-all"
+              >
+                💰 {t("closeCashShortcut")}
+              </Link>
+            )}
+            {isStaff && (
+              <Link
                 href={`/dashboard/fresh-check${storeId ? `?storeId=${storeId}` : ""}`}
                 className="flex items-center gap-1.5 rounded-2xl bg-orange-50 border border-orange-200 text-orange-600 px-4 py-2 text-sm font-semibold hover:bg-orange-100 transition-all"
               >

@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 
   const [store] = await sql`
-    SELECT id, name, business_type, phone, country, business_day_start_time, business_day_end_time, logo_thumbnail
+    SELECT id, name, business_type, phone, country, business_day_start_time, business_day_end_time, logo_thumbnail, drawer_float
     FROM stores WHERE id = ${storeId}
   `;
   if (!store) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
@@ -36,7 +36,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 
   try {
-    const { name, business_type, phone, businessDayStartTime, businessDayEndTime, logo } = await request.json();
+    const { name, business_type, phone, businessDayStartTime, businessDayEndTime, logo, drawerFloat } = await request.json();
+
+    if (drawerFloat !== undefined && (!Number.isFinite(Number(drawerFloat)) || Number(drawerFloat) < 0)) {
+      return NextResponse.json({ error: "จำนวนเงินในเก๊ะไม่ถูกต้อง" }, { status: 400 });
+    }
 
     const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
     if (businessDayStartTime !== undefined && !TIME_RE.test(businessDayStartTime)) {
@@ -54,6 +58,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         name = ${name}, business_type = ${business_type}, phone = ${phone}
         ${businessDayStartTime !== undefined ? sql`, business_day_start_time = ${businessDayStartTime}` : sql``}
         ${businessDayEndTime !== undefined ? sql`, business_day_end_time = ${businessDayEndTime}` : sql``}
+        ${drawerFloat !== undefined ? sql`, drawer_float = ${Number(drawerFloat)}` : sql``}
         ${logo !== undefined ? sql`, logo = ${logo}, logo_thumbnail = ${logoThumbnail}` : sql``}
       WHERE id = ${id}
     `;

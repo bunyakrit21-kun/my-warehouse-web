@@ -28,6 +28,8 @@ interface ExpectedData {
   shift: Shift | null;
   shifts: Shift[];
   openingFloat: number;
+  drawerFloat: number;
+  suggestDayClose: boolean;
   withdrawals: Withdrawal[];
   withdrawalsTotal: number;
 }
@@ -54,6 +56,7 @@ function CashClosingContent() {
   const [withdrawalsExpanded, setWithdrawalsExpanded] = useState(false);
 
   const [cashSales, setCashSales] = useState("");
+  const [isDayCloseOverride, setIsDayCloseOverride] = useState<boolean | null>(null);
   const [countMethod, setCountMethod] = useState<"quick" | "detailed">("quick");
   const [quickCounted, setQuickCounted] = useState("");
   const [denomQty, setDenomQty] = useState<Record<number, number>>({});
@@ -109,6 +112,9 @@ function CashClosingContent() {
   const difference = countedAmount - expectedAmount;
   // เงินสดที่กะนี้ทำได้จริง = ยอดที่นับ − เงินตั้งต้นที่รับต่อมา + เงินที่ถูกเบิกออกระหว่างกะ
   const shiftCash = data ? countedAmount - data.openingFloat + data.withdrawalsTotal : 0;
+  // ปิดร้านประจำวัน: ค่าเริ่มต้นตามที่ระบบเดา (กะสุดท้ายตามเวลา) พนักงานติ๊กเปลี่ยนได้
+  const dayClose = isDayCloseOverride ?? data?.suggestDayClose ?? false;
+  const cashToKeep = data ? Math.max(0, countedAmount - data.drawerFloat) : 0;
   const hasCounted = countMethod === "quick" ? quickCounted !== "" : Object.values(denomQty).some(q => q > 0);
 
   const selectedShift = data?.shifts.find(s => s.id === selectedShiftId) ?? null;
@@ -140,6 +146,7 @@ function CashClosingContent() {
           discrepancyReason: difference !== 0 ? discrepancyReason : null,
           discrepancyNote: difference !== 0 ? discrepancyNote : null,
           pin: pinStr,
+          isDayClose: dayClose,
         }),
       });
       if (!res.ok) {
@@ -312,6 +319,35 @@ function CashClosingContent() {
               </div>
             )}
           </div>
+
+          {/* ปิดร้านประจำวัน */}
+          {data && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-4">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input type="checkbox" checked={dayClose}
+                  onChange={e => setIsDayCloseOverride(e.target.checked)}
+                  className="mt-0.5 w-5 h-5 rounded accent-black" />
+                <span>
+                  <span className="text-sm font-bold text-gray-900 block">ปิดร้านวันนี้ (ปิดยอดสุดท้ายของวัน)</span>
+                  <span className="text-xs text-gray-400 block mt-0.5">
+                    เงินส่วนที่เกิน &quot;เงินในเก๊ะ&quot; จะถูกบันทึกว่าเก็บออก และวันพรุ่งนี้เริ่มนับจากเงินในเก๊ะ {formatCurrency(data.drawerFloat, country)}
+                  </span>
+                </span>
+              </label>
+              {dayClose && hasCounted && (
+                <div className="mt-3 pt-3 border-t border-dashed border-gray-200 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">เงินที่ต้องเก็บออกจากเก๊ะ</span>
+                    <span className="font-bold text-gray-900">{formatCurrency(cashToKeep, country)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">เหลือไว้ในเก๊ะ (เงินทอนพรุ่งนี้)</span>
+                    <span className="font-bold text-emerald-600">{formatCurrency(Math.min(countedAmount, data.drawerFloat), country)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ผลต่าง */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-2">

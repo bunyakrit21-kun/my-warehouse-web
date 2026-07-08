@@ -9,7 +9,7 @@ export async function GET() {
   try {
     const stores = await sql`
       SELECT DISTINCT s.id, s.name, s.business_type, s.phone, s.created_at, s.country,
-        s.business_day_start_time, s.business_day_end_time, s.logo_thumbnail,
+        s.business_day_start_time, s.business_day_end_time, s.logo_thumbnail, s.drawer_float,
         CASE WHEN s.owner_id = ${user.id} THEN 'owner' ELSE sm.role END AS my_role
       FROM stores s
       LEFT JOIN store_members sm ON sm.store_id = s.id AND sm.user_id = ${user.id}

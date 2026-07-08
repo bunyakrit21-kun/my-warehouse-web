@@ -92,23 +92,45 @@ export interface CashClosingExpected {
   openingFloat: number;
   withdrawals: WithdrawalItem[];
   withdrawalsTotal: number;
+  /** เงินในเก๊ะประจำร้าน — จำนวนที่ต้องเหลือค้างในลิ้นชักหลังปิดร้าน */
+  drawerFloat: number;
+  /** กะปัจจุบันเป็นกะสุดท้ายตามเวลาที่ตั้งไว้หรือไม่ — ใช้ติ๊ก "ปิดร้าน" ให้อัตโนมัติ (พนักงานแก้ได้) */
+  suggestDayClose: boolean;
 }
 
 /**
- * Computes everything the closing screen needs to auto-fill: opening float (carried
- * from the last closing, per spec-04 step 6), and withdrawals itemized since that last
- * closing (i.e. "during this shift" without needing exact shift-window timestamps).
+ * Computes everything the closing screen needs to auto-fill: opening float, and
+ * withdrawals itemized since the last closing (i.e. "during this shift" without
+ * needing exact shift-window timestamps).
+ *
+ * Opening float ทำงานเป็นรอบวัน (อิงวันเปิด-ปิดร้าน):
+ * - กะระหว่างวัน: ยอดตั้งต้น = ยอดที่กะก่อนหน้านับได้ (เงินส่งต่อทั้งลิ้นชัก)
+ * - หลังปิดร้าน (ปิดยอดที่ is_day_close): เงินส่วนเกินถูกเก็บออก เหลือแต่เงินในเก๊ะ
+ *   → ยอดตั้งต้นของวันใหม่ = stores.drawer_float
+ * - ร้านที่ยังไม่เคยปิดยอดเลย ก็เริ่มที่ drawer_float เช่นกัน
  */
 export async function getCashClosingExpected(storeId: string): Promise<CashClosingExpected> {
   const { timezone } = await getStoreTimeContext(storeId);
   const businessDate = await getCurrentBusinessDate(storeId);
   const { shift, shifts } = await detectCurrentShift(storeId, timezone);
 
+  const [store] = await sql`SELECT drawer_float FROM stores WHERE id = ${storeId}`;
+  const drawerFloat = Number(store?.drawer_float ?? 0);
+
   const [lastClosing] = await sql`
-    SELECT counted_amount, created_at FROM cash_closings
+    SELECT counted_amount, created_at, is_day_close FROM cash_closings
     WHERE store_id = ${storeId} ORDER BY created_at DESC LIMIT 1
   `;
-  const openingFloat = lastClosing ? Number(lastClosing.counted_amount) : 0;
+  const openingFloat = lastClosing
+    ? (lastClosing.is_day_close ? drawerFloat : Number(lastClosing.counted_amount))
+    : drawerFloat;
+
+  // กะสุดท้ายตามเวลาที่ตั้งไว้ (เรียงตาม start_time) — ใช้เป็นค่าเริ่มต้นของช่อง "ปิดร้าน" เท่านั้น
+  // ร้านที่เปิดกะไม่ครบทุกวันสามารถติ๊กเองได้ที่กะไหนก็ได้
+  const lastConfigured = shifts.length > 1
+    ? [...shifts].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)).at(-1)
+    : null;
+  const suggestDayClose = shifts.length <= 1 || !shift || lastConfigured?.id === shift.id;
 
   const withdrawals = await sql<WithdrawalItem[]>`
     SELECT cw.id, cw.amount, cw.reason, cw.created_at as "createdAt",
@@ -122,5 +144,5 @@ export async function getCashClosingExpected(storeId: string): Promise<CashClosi
 
   const withdrawalsTotal = withdrawals.reduce((sum, w) => sum + Number(w.amount), 0);
 
-  return { businessDate, shift, shifts, openingFloat, withdrawals, withdrawalsTotal };
+  return { businessDate, shift, shifts, openingFloat, withdrawals, withdrawalsTotal, drawerFloat, suggestDayClose };
 }

@@ -120,6 +120,23 @@ function CashClosingHistoryContent() {
     setEditError("");
   };
 
+  const deleteClosing = async () => {
+    if (!editRow || saving) return;
+    setEditError("");
+    if (!editPassword) return setEditError("กรุณายืนยันรหัสผ่านก่อนลบ");
+    if (!window.confirm("ยืนยันลบรายการปิดยอดนี้? รายการบัญชีที่ผูกอยู่จะถูกย้อนคืนอัตโนมัติ (ลบได้เฉพาะรายการล่าสุด)")) return;
+    setSaving(true);
+    const res = await fetch(`/api/cash-closings/${editRow.id}`, {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: editPassword }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (!res.ok) return setEditError(data.error || "เกิดข้อผิดพลาด");
+    setEditRow(null);
+    if (storeId) await load(storeId);
+  };
+
   const submitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editRow || saving) return;
@@ -313,6 +330,10 @@ function CashClosingHistoryContent() {
             )}
 
             <div className="flex gap-2 mt-3">
+              <button type="button" onClick={deleteClosing} disabled={saving}
+                className="rounded-xl border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-all disabled:opacity-40">
+                ลบ
+              </button>
               <button type="button" onClick={() => setEditRow(null)}
                 className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-gray-400 transition-all">
                 ยกเลิก

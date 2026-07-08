@@ -17,7 +17,7 @@ interface Category {
 }
 interface Transaction {
   id: number; type: "income" | "expense" | "transfer"; amount: string; note: string | null;
-  businessDate: string; source: "manual" | "cash_closing";
+  businessDate: string; source: "manual" | "cash_closing" | "cash_closing_dayclose";
   accountName: string | null; transferToAccountName: string | null;
   categoryId: number | null; categoryName: string | null; categoryType?: string | null; createdByName: string | null;
 }
@@ -199,7 +199,7 @@ function AccountingContent() {
   };
 
   const openEdit = (tx: Transaction) => {
-    if (tx.source === "cash_closing") return;
+    if (tx.source.startsWith("cash_closing")) return;
     setEditingTx(tx);
     setEditAmount(tx.amount);
     setEditNote(tx.note ?? "");
@@ -462,14 +462,14 @@ function AccountingContent() {
                       const sign = t.type === "income" ? "+" : t.type === "expense" ? "-" : "";
                       const color = t.type === "income" ? "text-emerald-600" : t.type === "expense" ? "text-red-500" : "text-blue-600";
                       const label = t.type === "transfer" ? `โอน · ${t.accountName} → ${t.transferToAccountName}` : `${t.categoryName ?? "-"} · ${t.accountName}`;
-                      const editable = t.source !== "cash_closing";
+                      const editable = !t.source.startsWith("cash_closing");
                       return (
                         <button key={t.id} onClick={() => editable && openEdit(t)} disabled={!editable}
                           className={`flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 pb-2.5 last:pb-0 text-left ${editable ? "hover:bg-gray-50 -mx-2 px-2 rounded-lg" : ""}`}>
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-gray-800 truncate">{label}</p>
                             <p className="text-[11px] text-gray-400 mt-0.5">
-                              {t.note || (t.source === "cash_closing" ? "ปิดยอดเงินสด (อัตโนมัติ, แก้ไม่ได้)" : t.createdByName ?? "-")}
+                              {t.note || (t.source.startsWith("cash_closing") ? "ปิดยอดเงินสด (อัตโนมัติ, แก้ไม่ได้)" : t.createdByName ?? "-")}
                             </p>
                           </div>
                           <span className={`text-xs font-bold shrink-0 ${color}`}>{sign}{formatCurrency(amt, country)}</span>

@@ -50,7 +50,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: EDIT_WINDOW_ERROR }, { status: 403 });
     }
 
-    if (existing.source === "cash_closing") {
+    if (String(existing.source ?? "").startsWith("cash_closing")) {
       return NextResponse.json(
         { error: "รายการนี้มาจากการปิดยอดเงินสด แก้ไขโดยตรงไม่ได้ ต้องแก้ที่ประวัติปิดยอดแทน" },
         { status: 400 }
@@ -143,7 +143,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!isWithinEditWindow(existing.created_at)) {
       return NextResponse.json({ error: EDIT_WINDOW_ERROR }, { status: 403 });
     }
-    if (existing.source === "cash_closing") {
+    if (String(existing.source ?? "").startsWith("cash_closing")) {
       return NextResponse.json(
         { error: "รายการนี้มาจากการปิดยอดเงินสด ลบโดยตรงไม่ได้ ต้องแก้ที่ประวัติปิดยอดแทน" },
         { status: 400 }
