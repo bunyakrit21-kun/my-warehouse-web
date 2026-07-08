@@ -21,6 +21,23 @@ function shiftInWindow(s: ShiftRow, nowMinutes: number): boolean {
   return start <= end ? nowMinutes >= start && nowMinutes < end : nowMinutes >= start || nowMinutes < end;
 }
 
+/**
+ * Whether `shiftId` is the store's last shift of the business day, chronologically
+ * by start_time (not sort_order, which is just insertion order and may not match
+ * the actual shift sequence). Only the last shift's closing represents cash that
+ * actually gets pulled from the register at end of day — see postCashClosingTransaction
+ * in lib/accounting.ts — earlier same-day shifts are handoff checkpoints only.
+ *
+ * A store with 0-1 shifts configured, or a closing made with no shift at all
+ * (shiftId null), always counts as "last" — preserves the pre-multi-shift behavior
+ * of posting every closing to the ledger.
+ */
+export function isLastShiftOfDay(shifts: ShiftRow[], shiftId: number | null): boolean {
+  if (!shiftId || shifts.length <= 1) return true;
+  const last = [...shifts].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)).at(-1);
+  return last?.id === shiftId;
+}
+
 /** Finds which of the store's shifts the current time falls into; falls back to the nearest preceding shift. */
 export async function detectCurrentShift(storeId: string, timezone: string): Promise<{ shift: ShiftRow | null; shifts: ShiftRow[] }> {
   const shifts = await sql<ShiftRow[]>`
@@ -37,6 +54,44 @@ export async function detectCurrentShift(storeId: string, timezone: string): Pro
   }
 
   return { shift, shifts };
+}
+
+export interface OverdueShiftInfo {
+  overdue: boolean;
+  shift: ShiftRow | null;
+}
+
+/**
+ * True when a shift's end_time has already passed today with no cash_closings row
+ * yet for (store, shift, businessDate) — the shift ended but nobody counted the
+ * drawer. Only reports the most recently ended shift, and only for same-day shifts
+ * (start_time < end_time) — overnight shifts that wrap past midnight aren't covered
+ * here since "has it ended" gets ambiguous across the business-date boundary; they
+ * still work fine for normal shift detection/closing, just not this reminder.
+ */
+export async function getOverdueShiftInfo(storeId: string): Promise<OverdueShiftInfo> {
+  const { timezone } = await getStoreTimeContext(storeId);
+  const businessDate = await getCurrentBusinessDate(storeId);
+  const nowMinutes = getMinutesSinceMidnight(new Date(), timezone);
+
+  const shifts = await sql<ShiftRow[]>`
+    SELECT id, name, start_time, end_time, color FROM shifts WHERE store_id = ${storeId} ORDER BY sort_order
+  `;
+
+  const ended = shifts
+    .filter((s): s is ShiftRow & { end_time: string } => !!s.end_time && timeToMinutes(s.start_time) < timeToMinutes(s.end_time))
+    .filter(s => timeToMinutes(s.end_time) <= nowMinutes)
+    .sort((a, b) => timeToMinutes(a.end_time) - timeToMinutes(b.end_time));
+
+  if (ended.length === 0) return { overdue: false, shift: null };
+  const mostRecentEnded = ended[ended.length - 1];
+
+  const [closed] = await sql`
+    SELECT id FROM cash_closings
+    WHERE store_id = ${storeId} AND shift_id = ${mostRecentEnded.id} AND business_date = ${businessDate}::date
+  `;
+  if (closed) return { overdue: false, shift: null };
+  return { overdue: true, shift: mostRecentEnded };
 }
 
 export interface WithdrawalItem {

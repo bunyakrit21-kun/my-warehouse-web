@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useT, LangSwitcher } from "@/lib/i18n";
 import { formatCurrency } from "@/lib/currency";
 import { DEFAULT_COUNTRY_CODE } from "@/lib/countries";
+import PasswordInput from "@/components/PasswordInput";
 
 interface ClosingRow {
   id: number;
@@ -72,6 +73,7 @@ function CashClosingHistoryContent() {
   const [editAmount, setEditAmount] = useState("");
   const [editReason, setEditReason] = useState<string | null>(null);
   const [editNote, setEditNote] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -112,6 +114,7 @@ function CashClosingHistoryContent() {
     setEditAmount(String(Number(row.countedAmount)));
     setEditReason(row.discrepancyReason);
     setEditNote(row.discrepancyNote ?? "");
+    setEditPassword("");
     setEditError("");
   };
 
@@ -120,6 +123,7 @@ function CashClosingHistoryContent() {
     if (!editRow || saving) return;
     setEditError("");
     if (!editAmount || Number(editAmount) < 0) return setEditError("กรุณากรอกยอดที่นับได้");
+    if (!editPassword) return setEditError("กรุณายืนยันรหัสผ่านก่อนบันทึก");
 
     setSaving(true);
     const res = await fetch(`/api/cash-closings/${editRow.id}`, {
@@ -130,6 +134,7 @@ function CashClosingHistoryContent() {
         countMethod: editRow.countMethod,
         discrepancyReason: editReason,
         discrepancyNote: editNote || null,
+        password: editPassword,
       }),
     });
     const data = await res.json();
@@ -283,6 +288,10 @@ function CashClosingHistoryContent() {
                 <label className="text-xs font-semibold text-gray-600 block mb-1.5">โน้ต</label>
                 <textarea value={editNote} onChange={e => setEditNote(e.target.value)} rows={2}
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white transition-all resize-none" />
+              </div>
+              <div className="pt-2 border-t border-gray-100">
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ยืนยันรหัสผ่านก่อนบันทึก</label>
+                <PasswordInput value={editPassword} onChange={setEditPassword} placeholder="รหัสผ่าน" required autoComplete="current-password" />
               </div>
             </div>
 

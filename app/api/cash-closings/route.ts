@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
-import { getCashClosingExpected } from "@/lib/cashClosing";
+import { getCashClosingExpected, isLastShiftOfDay } from "@/lib/cashClosing";
 import { verifyStorePin } from "@/lib/pin";
 import { postCashClosingTransaction } from "@/lib/accounting";
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
     const employee = pinResult.user;
 
-    const { businessDate, shift, openingFloat, withdrawalsTotal } = await getCashClosingExpected(storeId);
+    const { businessDate, shift, shifts, openingFloat, withdrawalsTotal } = await getCashClosingExpected(storeId);
     const salesNum = Number(cashSales) || 0;
     const expectedAmount = openingFloat + salesNum - withdrawalsTotal;
     const difference = Number(countedAmount) - expectedAmount;
@@ -76,11 +76,21 @@ export async function POST(request: Request) {
         RETURNING id
       `;
 
-      // spec-07 section 5: successful closing auto-posts an income transaction to the ledger.
-      // Post only the NEW cash this shift added, not the full counted total — openingFloat is
-      // the same physical cash already posted as income by the previous closing (see lib/accounting.ts).
-      const ledgerAmount = Number(countedAmount) - openingFloat;
-      await postCashClosingTransaction(sql, storeId, row.id, ledgerAmount, businessDate);
+      // Only the day's LAST shift posts to the accounting ledger — earlier same-day shift
+      // closings are handoff/reconciliation checkpoints, not an actual cash withdrawal.
+      // Post the NEW cash since the ledger's own running balance (not since the immediately
+      // prior shift's count, which for a non-last shift wouldn't include intermediate shifts —
+      // see isLastShiftOfDay + syncCashClosingTransaction for why this must be balance-relative).
+      if (isLastShiftOfDay(shifts, resolvedShiftId)) {
+        const [account] = await sql`
+          SELECT current_balance FROM accounts WHERE store_id = ${storeId} AND is_default_cash = true AND archived_at IS NULL
+          FOR UPDATE
+        `;
+        if (account) {
+          const ledgerAmount = Number(countedAmount) - Number(account.current_balance);
+          await postCashClosingTransaction(sql, storeId, row.id, ledgerAmount, businessDate);
+        }
+      }
 
       return row.id;
     });

@@ -45,14 +45,21 @@ export async function postCashClosingTransaction(
 
 /**
  * Re-syncs the linked transaction's amount (and the account balance) when an
- * already-closed cash_closings record is corrected. `newLedgerAmount` must be
- * computed the same way as in postCashClosingTransaction (new counted amount
- * minus that closing's own opening_float). No-op if no linked transaction
- * exists (e.g. closings made before spec-07, or the default account was missing at close time).
+ * already-closed cash_closings record is corrected. Takes `countedAmountDelta`
+ * (newCountedAmount - oldCountedAmount) rather than a recomputed absolute ledger
+ * amount — since only the last shift of the day posts to the ledger (see
+ * isLastShiftOfDay in lib/cashClosing.ts), the linked transaction's amount isn't
+ * simply countedAmount minus this row's own opening_float; nudging it by the same
+ * delta the count changed by is correct regardless of which shift this is or
+ * whether it's the day's ledger-posting closing. No-op if no linked transaction
+ * exists — e.g. this closing was never the last shift of its day, so it never
+ * posted anything to correct in the first place.
  */
 export async function syncCashClosingTransaction(
-  tx: SqlClient, cashClosingId: number, newLedgerAmount: number
+  tx: SqlClient, cashClosingId: number, countedAmountDelta: number
 ): Promise<void> {
+  if (countedAmountDelta === 0) return;
+
   const [linked] = await tx`
     SELECT t.id, t.amount, a.id as account_id FROM transactions t
     JOIN accounts a ON a.id = t.account_id
@@ -61,9 +68,7 @@ export async function syncCashClosingTransaction(
   `;
   if (!linked) return;
 
-  const delta = newLedgerAmount - Number(linked.amount);
-  if (delta === 0) return;
-
-  await tx`UPDATE accounts SET current_balance = current_balance + ${delta} WHERE id = ${linked.account_id}`;
-  await tx`UPDATE transactions SET amount = ${newLedgerAmount} WHERE id = ${linked.id}`;
+  const newAmount = Number(linked.amount) + countedAmountDelta;
+  await tx`UPDATE accounts SET current_balance = current_balance + ${countedAmountDelta} WHERE id = ${linked.account_id}`;
+  await tx`UPDATE transactions SET amount = ${newAmount} WHERE id = ${linked.id}`;
 }

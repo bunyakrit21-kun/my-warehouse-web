@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 import { syncCashClosingTransaction } from "@/lib/accounting";
+import { isRateLimited } from "@/lib/rateLimit";
 
 const VALID_METHODS = ["quick", "detailed"];
 const VALID_REASONS = ["wrong_change", "missed_withdrawal_log", "counterfeit_damaged", "other"];
@@ -46,8 +48,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: true });
     }
 
-    // --- Edit fields (correcting an already-closed record) ---
-    const { countedAmount, countMethod, denominationBreakdown, discrepancyReason, discrepancyNote } = body;
+    // --- Edit fields (correcting an already-closed record) — password required every time,
+    // same as the accounting ledger's transaction edits (spec-07 §6.2): this changes the
+    // official record of how much cash was actually counted, so it needs more than just an
+    // existing admin/manager session.
+    const { countedAmount, countMethod, denominationBreakdown, discrepancyReason, discrepancyNote, password } = body;
+
+    if (!password) return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านก่อนบันทึกการแก้ไข" }, { status: 400 });
+    if (isRateLimited(`closing-edit-auth:${user.id}`, 5, 5 * 60 * 1000)) {
+      return NextResponse.json({ error: "ลองยืนยันตัวตนผิดหลายครั้งเกินไป กรุณาลองใหม่ในอีกสักครู่" }, { status: 429 });
+    }
+    const [userRow] = await sql`SELECT password FROM users WHERE id = ${user.id} AND active = true`;
+    if (!userRow) return NextResponse.json({ error: "ไม่พบบัญชีผู้ใช้" }, { status: 404 });
+    const passwordOk = await bcrypt.compare(password, userRow.password);
+    if (!passwordOk) return NextResponse.json({ error: "รหัสผ่านไม่ถูกต้อง" }, { status: 401 });
 
     if (countedAmount === undefined || countedAmount === null || !Number.isFinite(Number(countedAmount)) || Number(countedAmount) < 0) {
       return NextResponse.json({ error: "กรุณากรอกยอดที่นับได้" }, { status: 400 });
@@ -113,11 +127,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       `;
 
       // spec-07 section 5.2: corrections flow one-way from cash_closings into the ledger.
-      // Must use the SAME opening_float this closing was created with (not a freshly-queried
-      // one) — that float is what the linked transaction's amount was already computed against.
+      // Nudge the linked transaction (if any — only the day's last-shift closing has one,
+      // see isLastShiftOfDay) by the same amount the count changed by.
       if (changes.countedAmount) {
-        const ledgerAmount = Number(countedAmount) - Number(row.opening_float);
-        await syncCashClosingTransaction(sql, Number(id), ledgerAmount);
+        const countedAmountDelta = Number(countedAmount) - Number(row.counted_amount);
+        await syncCashClosingTransaction(sql, Number(id), countedAmountDelta);
       }
 
       return { unchanged: false, difference: newDifference };

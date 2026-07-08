@@ -3,6 +3,7 @@ import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 import { getCurrentBusinessDate } from "@/lib/businessDay";
 import { verifyStorePin } from "@/lib/pin";
+import { getOverdueShiftInfo } from "@/lib/cashClosing";
 
 const VALID_TYPES = ["MOVE_IN", "MOVE_OUT"] as const;
 
@@ -67,6 +68,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
     }
     const employee = pinResult.user;
+
+    // Block new stock movements once a shift has ended without its drawer being
+    // counted — same rule the movement screen shows as a banner, enforced here too
+    // so it can't be skipped by calling this endpoint directly.
+    const overdueInfo = await getOverdueShiftInfo(storeId);
+    if (overdueInfo.overdue) {
+      return NextResponse.json(
+        { error: `ถึงเวลาปิดกะ "${overdueInfo.shift?.name}" แล้ว กรุณานับเงินปิดยอดก่อนทำรายการต่อ`, overdueShift: true },
+        { status: 409 }
+      );
+    }
 
     const businessDate = await getCurrentBusinessDate(storeId);
 

@@ -97,6 +97,7 @@ export default function MovementPage() {
   const [isStaff, setIsStaff] = useState(false);
   const [storeId, setStoreId] = useState("");
   const [country, setCountry] = useState(DEFAULT_COUNTRY_CODE);
+  const [overdueShiftName, setOverdueShiftName] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const paramProductId = searchParams.get("productId");
@@ -117,11 +118,12 @@ export default function MovementPage() {
 
       if (!resolvedStoreId) { setLoading(false); return; }
 
-      const [resP, resM, resC, resS] = await Promise.all([
+      const [resP, resM, resC, resS, resO] = await Promise.all([
         fetch(`/api/products?storeId=${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/movements?storeId=${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/cash-withdrawals?storeId=${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/stores/${resolvedStoreId}`, { cache: "no-store" }),
+        fetch(`/api/cash-closings/overdue?storeId=${resolvedStoreId}`, { cache: "no-store" }),
       ]);
 
       const productsData: Product[] = await resP.json();
@@ -130,6 +132,10 @@ export default function MovementPage() {
       if (resS.ok) {
         const storeData = await resS.json();
         if (storeData?.country) setCountry(storeData.country);
+      }
+      if (resO.ok) {
+        const overdueData = await resO.json();
+        setOverdueShiftName(overdueData.overdue ? overdueData.shift?.name ?? null : null);
       }
 
       setProducts(productsData);
@@ -216,6 +222,10 @@ export default function MovementPage() {
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (overdueShiftName) {
+      return alert(`ถึงเวลาปิดกะ "${overdueShiftName}" แล้ว กรุณานับเงินปิดยอดก่อนทำรายการต่อ`);
+    }
+
     if (pin.join("").length !== 4 || employeeName.includes("❌") || !employeeName) {
       return alert(t("alertPinRequired"));
     }
@@ -288,9 +298,9 @@ export default function MovementPage() {
   }
 
   const pinStr = pin.join("");
-  const canSubmit = isCashMode
+  const canSubmit = !overdueShiftName && (isCashMode
     ? !!cashAmount && Number(cashAmount) > 0 && !!cashReason.trim() && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌")
-    : !!selectedProductId && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌") && !isOverStocked;
+    : !!selectedProductId && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌") && !isOverStocked);
 
   return (
     <main className="min-h-screen bg-gray-50 text-black font-sans antialiased pb-12">
@@ -328,6 +338,22 @@ export default function MovementPage() {
       </header>
 
       <section className="mx-auto max-w-6xl px-6 py-10">
+        {overdueShiftName && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-400 text-white text-lg">⏰</span>
+              <p className="text-sm font-semibold text-amber-800">
+                ถึงเวลาปิดกะ &quot;{overdueShiftName}&quot; แล้ว กรุณานับเงินปิดยอดก่อนทำรายการต่อ
+              </p>
+            </div>
+            <Link
+              href={`/dashboard/cash-closing${storeId ? `?storeId=${storeId}` : ""}`}
+              className="shrink-0 rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white hover:bg-amber-600 transition-all"
+            >
+              ไปปิดยอด
+            </Link>
+          </div>
+        )}
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight">{t("movementTitle")}</h1>
           <p className="mt-1 text-sm text-gray-500">{t("movementDesc")}</p>
