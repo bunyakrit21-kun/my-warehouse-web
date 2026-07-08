@@ -16,10 +16,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const storeId = await resolveStoreId(user, String(existing.store_id));
     if (!storeId) return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
 
-    const { name } = await request.json();
+    const { name, icon } = await request.json();
     if (!name) return NextResponse.json({ error: "กรุณาระบุชื่อหมวดหมู่" }, { status: 400 });
 
-    await sql`UPDATE transaction_categories SET name = ${name} WHERE id = ${id}`;
+    if (icon) {
+      await sql`UPDATE transaction_categories SET name = ${name}, icon = ${icon} WHERE id = ${id}`;
+    } else {
+      await sql`UPDATE transaction_categories SET name = ${name} WHERE id = ${id}`;
+    }
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });

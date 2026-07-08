@@ -15,7 +15,8 @@ export async function GET(request: Request) {
 
   try {
     const accounts = await sql`
-      SELECT id, name, account_type as "accountType", current_balance as "currentBalance", is_default_cash as "isDefaultCash"
+      SELECT id, name, account_type as "accountType", icon, current_balance as "currentBalance",
+             is_default_cash as "isDefaultCash", is_system as "isSystem"
       FROM accounts
       WHERE store_id = ${storeId} AND archived_at IS NULL
       ORDER BY is_default_cash DESC, created_at ASC
@@ -26,13 +27,15 @@ export async function GET(request: Request) {
   }
 }
 
+const DEFAULT_ICON_BY_TYPE: Record<string, string> = { cash: "cash", bank: "bank", "e-wallet": "wallet", other: "dots" };
+
 export async function POST(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   try {
-    const { storeId: bodyStoreId, name, accountType } = await request.json();
+    const { storeId: bodyStoreId, name, accountType, icon } = await request.json();
 
     if (!name || !VALID_TYPES.includes(accountType)) {
       return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
@@ -42,9 +45,10 @@ export async function POST(request: Request) {
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
 
     const [account] = await sql`
-      INSERT INTO accounts (store_id, name, account_type)
-      VALUES (${storeId}, ${name}, ${accountType})
-      RETURNING id, name, account_type as "accountType", current_balance as "currentBalance", is_default_cash as "isDefaultCash"
+      INSERT INTO accounts (store_id, name, account_type, icon)
+      VALUES (${storeId}, ${name}, ${accountType}, ${icon || DEFAULT_ICON_BY_TYPE[accountType]})
+      RETURNING id, name, account_type as "accountType", icon, current_balance as "currentBalance",
+                is_default_cash as "isDefaultCash", is_system as "isSystem"
     `;
     return NextResponse.json(account, { status: 201 });
   } catch {

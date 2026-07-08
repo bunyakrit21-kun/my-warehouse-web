@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     const [category] = await sql`
       INSERT INTO transaction_categories (store_id, name, type, icon)
-      VALUES (${storeId}, ${name}, ${type}, ${icon ?? null})
+      VALUES (${storeId}, ${name}, ${type}, ${icon || "tag"})
       RETURNING id, name, type, icon, is_system as "isSystem"
     `;
     return NextResponse.json(category, { status: 201 });

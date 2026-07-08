@@ -55,3 +55,24 @@ export async function resolveStoreId(
   `;
   return rows.length > 0 ? requestedStoreId : null;
 }
+
+/**
+ * Step-up authentication for the accounting ledger (spec-07 section 6.1): entering
+ * the "บัญชี" page requires re-confirming the login password, valid for 15 minutes,
+ * even though the user already has a normal admin session. Separate cookie from
+ * `token` so a stale/expired step-up doesn't affect the rest of the app.
+ */
+export const STEPUP_COOKIE = "stepup_acct";
+export const STEPUP_MAX_AGE_SECONDS = 15 * 60;
+
+export async function hasValidStepUp(userId: number): Promise<boolean> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(STEPUP_COOKIE)?.value;
+  if (!token) return false;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { uid: number };
+    return decoded.uid === userId;
+  } catch {
+    return false;
+  }
+}

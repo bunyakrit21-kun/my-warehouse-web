@@ -23,7 +23,7 @@ export async function GET(request: Request) {
              t.source, t.created_at as "createdAt",
              a.name as "accountName",
              ta.name as "transferToAccountName",
-             c.name as "categoryName", c.type as "categoryType",
+             t.category_id as "categoryId", c.name as "categoryName", c.type as "categoryType",
              u.name as "createdByName"
       FROM transactions t
       LEFT JOIN accounts a ON a.id = t.account_id
