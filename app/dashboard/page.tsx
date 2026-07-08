@@ -19,6 +19,7 @@ interface CashClosing {
   id: number; businessDate: string; countedAmount: string; expectedAmount: string;
   difference: string; shiftName: string | null; closedByName: string | null; createdAt: string;
 }
+interface OverdueShift { overdue: boolean; shift: { id: number; name: string } | null; }
 interface Transaction { id: number; type: "income" | "expense" | "transfer"; amount: string; }
 interface AccountingSummary { income: number; expense: number; count: number; }
 
@@ -71,6 +72,7 @@ export default function DashboardPage() {
   const [movementSummary, setMovementSummary] = useState<MovementSummary | null>(null);
   const [latestClosing, setLatestClosing] = useState<CashClosing | null>(null);
   const [accountingSummary, setAccountingSummary] = useState<AccountingSummary | null>(null);
+  const [overdueShift, setOverdueShift] = useState<OverdueShift["shift"]>(null);
   const [stockSearch, setStockSearch] = useState("");
   const [stockTab, setStockTab] = useState<"all" | StockStatus>("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -124,6 +126,11 @@ export default function DashboardPage() {
     setAccountingSummary({ income, expense, count: data.length });
   };
 
+  const fetchOverdueShiftForStore = async (sid: number) => {
+    const data: OverdueShift | null = await fetch(`/api/cash-closings/overdue?storeId=${sid}`).then(r => r.ok ? r.json() : null);
+    setOverdueShift(data?.overdue ? data.shift : null);
+  };
+
   const loadStoreData = (sid: number) => Promise.all([
     fetchProductsForStore(sid),
     fetchScheduleForStore(sid),
@@ -131,6 +138,7 @@ export default function DashboardPage() {
     fetchMovementsSummaryForStore(sid),
     fetchLatestClosingForStore(sid),
     fetchAccountingSummaryForStore(sid),
+    fetchOverdueShiftForStore(sid),
   ]);
 
   useEffect(() => {
@@ -354,8 +362,15 @@ export default function DashboardPage() {
       <section className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-4">
 
         {/* แถบแจ้งเตือน — โชว์เฉพาะตอนมีอะไรต้องดู */}
-        {(criticalItems.length > 0 || flaggedClosings.length > 0) && (
+        {(criticalItems.length > 0 || flaggedClosings.length > 0 || overdueShift) && (
           <div className="flex flex-wrap gap-2">
+            {overdueShift && (
+              <Link href={`/dashboard/cash-closing${q}`}
+                className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-700 hover:border-amber-400 transition-all">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                ถึงเวลาปิดกะ &quot;{overdueShift.name}&quot; แล้ว
+              </Link>
+            )}
             {criticalItems.length > 0 && (
               <Link href={`/dashboard/inventory${q}`}
                 className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-600 hover:border-red-300 transition-all">
@@ -547,32 +562,42 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* แถวล่าง: บัญชี+ปิดยอด | ตารางงาน */}
+        {/* แถวล่าง: บัญชีเดือนนี้ | ตารางงาน */}
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3.5">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">ปิดยอด</p>
-              <p className="text-lg font-semibold">{latestClosing ? formatCurrency(Number(latestClosing.countedAmount), country) : "–"}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">ยอดล่าสุด</p>
-              <Link href={`/dashboard/cash-closing${q}`} className="block text-center text-[10px] font-semibold border border-gray-200 rounded-lg py-1.5 mt-2.5 hover:bg-gray-50">
-                ปิดยอดใหม่
-              </Link>
-            </div>
-            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3.5">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">บัญชี</p>
-              {accountingSummary ? (
-                <>
-                  <p className="text-lg font-semibold">{formatCurrency(accountingSummary.income - accountingSummary.expense, country)}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">สุทธิเดือนนี้ · {accountingSummary.count} รายการ</p>
-                </>
-              ) : (
-                <p className="text-xs text-gray-400 mt-1">ไม่มีสิทธิ์ดูข้อมูลนี้</p>
+          {/* บัญชีเดือนนี้ */}
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-xs font-bold text-gray-800">บัญชีเดือนนี้</span>
+              {overdueShift && (
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">รอปิดกะ</span>
               )}
-              <Link href={`/dashboard/accounting${q}`} className="block text-center text-[10px] font-semibold border border-gray-200 rounded-lg py-1.5 mt-2.5 hover:bg-gray-50">
-                ดูบัญชีทั้งหมด
-              </Link>
             </div>
+            {accountingSummary ? (
+              <div className="p-4 flex flex-col gap-3">
+                <div>
+                  <p className={`text-xl font-black ${accountingSummary.income - accountingSummary.expense >= 0 ? "text-gray-900" : "text-red-600"}`}>
+                    {formatCurrency(accountingSummary.income - accountingSummary.expense, country)}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">สุทธิ · {accountingSummary.count} รายการ</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-100">
+                  <div>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">รายรับ</p>
+                    <p className="text-sm font-bold text-emerald-600 mt-0.5">{formatCurrency(accountingSummary.income, country)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">รายจ่าย</p>
+                    <p className="text-sm font-bold text-red-500 mt-0.5">{formatCurrency(accountingSummary.expense, country)}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 text-xs text-gray-400">ไม่มีสิทธิ์ดูข้อมูลนี้</div>
+            )}
+            <Link href={`/dashboard/accounting${q}`} className="block text-center text-[10px] font-semibold border-t border-gray-100 py-2 hover:bg-gray-50">
+              ดูบัญชีทั้งหมด
+            </Link>
           </div>
 
           {/* ตารางงาน */}
