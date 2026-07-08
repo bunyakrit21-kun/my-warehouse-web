@@ -96,6 +96,10 @@ export interface CashClosingExpected {
   drawerFloat: number;
   /** กะปัจจุบันเป็นกะสุดท้ายตามเวลาที่ตั้งไว้หรือไม่ — ใช้ติ๊ก "ปิดร้าน" ให้อัตโนมัติ (พนักงานแก้ได้) */
   suggestDayClose: boolean;
+  /** ที่มาของยอดรับต่อ: ใครนับไว้ กะไหน เมื่อไหร่ (null = ยังไม่เคยมีการนับ) */
+  openingFrom: { closedByName: string | null; shiftName: string | null; createdAt: string } | null;
+  /** true = ยอดรับต่อคือเงินในเก๊ะหลังปิดร้าน (เริ่มวันใหม่) ไม่ใช่ยอดส่งต่อจากกะ */
+  openingIsNewDay: boolean;
 }
 
 /**
@@ -118,12 +122,20 @@ export async function getCashClosingExpected(storeId: string): Promise<CashClosi
   const drawerFloat = Number(store?.drawer_float ?? 0);
 
   const [lastClosing] = await sql`
-    SELECT counted_amount, created_at, is_day_close FROM cash_closings
-    WHERE store_id = ${storeId} ORDER BY created_at DESC LIMIT 1
+    SELECT cc.counted_amount, cc.created_at, cc.is_day_close,
+           u.name as closed_by_name, s.name as shift_name
+    FROM cash_closings cc
+    LEFT JOIN users u ON u.id = cc.closed_by_user_id
+    LEFT JOIN shifts s ON s.id = cc.shift_id
+    WHERE cc.store_id = ${storeId} ORDER BY cc.created_at DESC LIMIT 1
   `;
+  const openingIsNewDay = !lastClosing || !!lastClosing.is_day_close;
   const openingFloat = lastClosing
     ? (lastClosing.is_day_close ? drawerFloat : Number(lastClosing.counted_amount))
     : drawerFloat;
+  const openingFrom = lastClosing && !lastClosing.is_day_close
+    ? { closedByName: lastClosing.closed_by_name as string | null, shiftName: lastClosing.shift_name as string | null, createdAt: String(lastClosing.created_at) }
+    : null;
 
   // กะสุดท้ายตามเวลาที่ตั้งไว้ (เรียงตาม start_time) — ใช้เป็นค่าเริ่มต้นของช่อง "ปิดร้าน" เท่านั้น
   // ร้านที่เปิดกะไม่ครบทุกวันสามารถติ๊กเองได้ที่กะไหนก็ได้
@@ -144,5 +156,5 @@ export async function getCashClosingExpected(storeId: string): Promise<CashClosi
 
   const withdrawalsTotal = withdrawals.reduce((sum, w) => sum + Number(w.amount), 0);
 
-  return { businessDate, shift, shifts, openingFloat, withdrawals, withdrawalsTotal, drawerFloat, suggestDayClose };
+  return { businessDate, shift, shifts, openingFloat, withdrawals, withdrawalsTotal, drawerFloat, suggestDayClose, openingFrom, openingIsNewDay };
 }

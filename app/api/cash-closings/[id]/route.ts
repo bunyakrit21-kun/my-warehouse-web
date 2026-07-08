@@ -53,7 +53,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // same as the accounting ledger's transaction edits (spec-07 §6.2): this changes the
     // official record of how much cash was actually counted, so it needs more than just an
     // existing admin/manager session.
-    const { countedAmount, countMethod, denominationBreakdown, discrepancyReason, discrepancyNote, password } = body;
+    const { countedAmount, countMethod, denominationBreakdown, discrepancyReason, discrepancyNote, password, businessDate } = body;
+
+    if (businessDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(businessDate))) {
+      return NextResponse.json({ error: "รูปแบบวันที่ไม่ถูกต้อง" }, { status: 400 });
+    }
 
     // แก้ตัวเลขย้อนหลังได้ภายใน 7 วันเท่านั้น (การเซ็นรับทราบด้านบนไม่จำกัดเวลา)
     if (!isWithinEditWindow(existing.created_at)) {
@@ -102,6 +106,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
       if ((discrepancyNote ?? null) !== row.discrepancy_note) {
         changes.discrepancyNote = { from: row.discrepancy_note, to: discrepancyNote ?? null };
+      }
+      const oldBusinessDate = typeof row.business_date === "string"
+        ? row.business_date.slice(0, 10)
+        : new Date(row.business_date).toISOString().slice(0, 10);
+      const newBusinessDate = businessDate !== undefined ? String(businessDate) : oldBusinessDate;
+      if (newBusinessDate !== oldBusinessDate) {
+        changes.businessDate = { from: oldBusinessDate, to: newBusinessDate };
       }
 
       if (Object.keys(changes).length === 0) {

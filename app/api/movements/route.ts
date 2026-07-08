@@ -46,10 +46,26 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { productId, type, qty, note, pin, storeId: bodyStoreId } = body;
+    const { type, note, pin, storeId: bodyStoreId } = body;
 
-    if (!productId || !qty || qty <= 0) {
+    // รองรับทั้งแบบเดิม { productId, qty } (สินค้าเดียว) และแบบใหม่ { items: [{productId, qty}] }
+    // (เลือกได้หลายสินค้าต่อการทำรายการหนึ่งครั้ง)
+    const items: { productId: string; qty: number }[] = Array.isArray(body.items)
+      ? body.items
+      : body.productId
+        ? [{ productId: body.productId, qty: body.qty }]
+        : [];
+
+    if (
+      items.length === 0 ||
+      items.some((it) => !it.productId || !it.qty || it.qty <= 0)
+    ) {
       return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
+    }
+
+    const productIds = items.map((it) => it.productId);
+    if (new Set(productIds).size !== productIds.length) {
+      return NextResponse.json({ error: "มีสินค้าซ้ำในรายการเดียวกัน" }, { status: 400 });
     }
 
     if (!VALID_TYPES.includes(type)) {
@@ -83,39 +99,46 @@ export async function POST(request: Request) {
     const businessDate = await getCurrentBusinessDate(storeId);
 
     const result = await sql.begin(async (sql) => {
-      const products = await sql`
-        SELECT stock FROM products
-        WHERE id = ${productId} AND store_id = ${storeId}
-        FOR UPDATE
-      `;
+      // ล็อกทีละแถวตามลำดับ product id คงที่ กันเดดล็อกเวลามีการเบิกหลายสินค้าพร้อมกันจากคนละคำขอ
+      const sortedItems = [...items].sort((a, b) => (a.productId < b.productId ? -1 : 1));
 
-      if (products.length === 0) throw new Error("ไม่พบสินค้า");
+      for (const item of sortedItems) {
+        const products = await sql`
+          SELECT name, stock FROM products
+          WHERE id = ${item.productId} AND store_id = ${storeId}
+          FOR UPDATE
+        `;
 
-      const product = products[0];
+        if (products.length === 0) throw new Error("ไม่พบสินค้า");
 
-      if (type === "MOVE_OUT" && product.stock < qty) {
-        throw new Error("สต็อกไม่เพียงพอสำหรับการเบิก");
+        const product = products[0];
+
+        if (type === "MOVE_OUT" && product.stock < item.qty) {
+          throw new Error(`สต็อกไม่เพียงพอสำหรับการเบิก: ${product.name}`);
+        }
+
+        await sql`
+          INSERT INTO movements (product_id, user_id, type, qty, note, store_id, business_date)
+          VALUES (${item.productId}, ${employee.id}, ${type}, ${item.qty}, ${note || ""}, ${storeId}, ${businessDate})
+        `;
+
+        const change = type === "MOVE_IN" ? item.qty : -item.qty;
+        await sql`
+          UPDATE products SET stock = stock + ${change}
+          WHERE id = ${item.productId} AND store_id = ${storeId}
+        `;
       }
 
-      await sql`
-        INSERT INTO movements (product_id, user_id, type, qty, note, store_id, business_date)
-        VALUES (${productId}, ${employee.id}, ${type}, ${qty}, ${note || ""}, ${storeId}, ${businessDate})
-      `;
-
-      const change = type === "MOVE_IN" ? qty : -qty;
-      await sql`
-        UPDATE products SET stock = stock + ${change}
-        WHERE id = ${productId} AND store_id = ${storeId}
-      `;
-
-      return { success: true };
+      return { success: true, count: sortedItems.length };
     });
 
     return NextResponse.json(result);
   } catch (error) {
-    const known = ["ไม่พบสินค้า", "สต็อกไม่เพียงพอสำหรับการเบิก"];
     const message = error instanceof Error ? error.message : "";
-    const msg = known.includes(message) ? message : "เกิดข้อผิดพลาด";
+    const msg =
+      message === "ไม่พบสินค้า" || message.startsWith("สต็อกไม่เพียงพอสำหรับการเบิก")
+        ? message
+        : "เกิดข้อผิดพลาด";
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

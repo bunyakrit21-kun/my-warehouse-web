@@ -381,7 +381,7 @@ export default function DashboardPage() {
         {(criticalItems.length > 0 || flaggedClosings.length > 0 || overdueShift) && (
           <div className="flex flex-wrap gap-2">
             {overdueShift && (
-              <Link href={`/dashboard/cash-closing${q}`}
+              <Link href={`/dashboard/shift-handoff${q}`}
                 className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-700 hover:border-amber-400 transition-all">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 ถึงเวลาปิดกะ &quot;{overdueShift.name}&quot; แล้ว
@@ -611,8 +611,11 @@ export default function DashboardPage() {
               <div className="p-4 text-xs text-gray-400">ยังไม่มีการปิดยอด</div>
             )}
             <div className="flex border-t border-gray-100 mt-auto">
-              <Link href={`/dashboard/cash-closing${q}`} className="flex-1 text-center text-[10px] font-semibold py-2 hover:bg-gray-50">
-                ปิดยอดใหม่
+              <Link href={`/dashboard/shift-handoff${q}`} className="flex-1 text-center text-[10px] font-semibold py-2 hover:bg-gray-50 text-gray-500">
+                นับส่งต่อกะ
+              </Link>
+              <Link href={`/dashboard/cash-closing${q}`} className="flex-1 text-center text-[10px] font-semibold py-2 border-l border-gray-100 hover:bg-gray-50">
+                ปิดยอดสิ้นวัน
               </Link>
               <Link href={`/dashboard/cash-closing/history${q}`} className="flex-1 text-center text-[10px] font-semibold py-2 border-l border-gray-100 text-gray-500 hover:bg-gray-50">
                 ประวัติ

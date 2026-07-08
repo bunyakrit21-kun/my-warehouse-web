@@ -58,7 +58,7 @@ export default async function proxy(request: NextRequest) {
         }
       } else {
         // พนักงานทั่วไป → movement + fresh-check เท่านั้น (ประวัติปิดยอดเป็นของผู้จัดการ/แอดมิน)
-        const staffAllowed = ["/dashboard/movement", "/dashboard/fresh-check", "/dashboard/cash-closing"];
+        const staffAllowed = ["/dashboard/movement", "/dashboard/fresh-check", "/dashboard/cash-closing", "/dashboard/shift-handoff"];
         const isManagerOnly = pathname.startsWith("/dashboard/cash-closing/history");
         if (isManagerOnly || !staffAllowed.some(p => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL("/dashboard/movement", request.url));

@@ -80,10 +80,9 @@ export default function MovementPage() {
   const [mounted, setMounted] = useState(false);
 
   const [type, setType] = useState("MOVE_IN");
-  const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedItems, setSelectedItems] = useState<{ productId: string; qty: number }[]>([]);
   const [selectedZone, setSelectedZone] = useState("all");
   const [productSearch, setProductSearch] = useState("");
-  const [qty, setQty] = useState<number | "">(1);
   const [note, setNote] = useState("");
 
   // Cash withdrawal fields
@@ -173,7 +172,7 @@ export default function MovementPage() {
       setCashWithdrawals(formattedCash);
 
       if (paramProductId && productsData.some((p) => p.id === paramProductId)) {
-        setSelectedProductId(paramProductId);
+        setSelectedItems((prev) => (prev.some((it) => it.productId === paramProductId) ? prev : [...prev, { productId: paramProductId, qty: 1 }]));
       }
     } catch (err) {
       console.error(err);
@@ -186,9 +185,25 @@ export default function MovementPage() {
     fetchData().then(() => setMounted(true));
   }, [fetchData]);
 
-  const currentProduct = products.find((p) => p.id === selectedProductId);
-  const isOverStocked = type === "MOVE_OUT" && currentProduct && Number(qty) > currentProduct.stock;
   const isCashMode = type === "CASH_OUT";
+  const anyOverStock = type === "MOVE_OUT" && selectedItems.some((it) => {
+    const p = products.find((pp) => pp.id === it.productId);
+    return p && it.qty > p.stock;
+  });
+
+  const toggleProductSelection = (productId: string) => {
+    setSelectedItems((prev) =>
+      prev.some((it) => it.productId === productId)
+        ? prev.filter((it) => it.productId !== productId)
+        : [...prev, { productId, qty: 1 }]
+    );
+  };
+  const updateItemQty = (productId: string, qty: number) => {
+    setSelectedItems((prev) => prev.map((it) => (it.productId === productId ? { ...it, qty: Math.max(1, qty || 1) } : it)));
+  };
+  const removeItem = (productId: string) => {
+    setSelectedItems((prev) => prev.filter((it) => it.productId !== productId));
+  };
 
   const handleCashPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -317,9 +332,9 @@ export default function MovementPage() {
       return;
     }
 
-    if (!selectedProductId || !currentProduct) return alert(t("alertSelectProduct"));
-    if (!qty || Number(qty) <= 0) return alert(t("alertQtyRequired"));
-    if (isOverStocked) return alert(t("alertOverStock"));
+    if (selectedItems.length === 0) return alert(t("alertSelectProduct"));
+    if (selectedItems.some((it) => !it.qty || it.qty <= 0)) return alert(t("alertQtyRequired"));
+    if (anyOverStock) return alert(t("alertOverStock"));
 
     setSubmitting(true);
     try {
@@ -327,9 +342,8 @@ export default function MovementPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId: selectedProductId,
+          items: selectedItems.map((it) => ({ productId: it.productId, qty: Number(it.qty) })),
           type,
-          qty: Number(qty),
           note: note.trim() || "",
           pin: pin.join(""),
           storeId,
@@ -356,7 +370,7 @@ export default function MovementPage() {
   const pinStr = pin.join("");
   const canSubmit = !overdueShiftName && (isCashMode
     ? !!cashAmount && Number(cashAmount) > 0 && !!cashReason.trim() && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌")
-    : !!selectedProductId && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌") && !isOverStocked);
+    : selectedItems.length > 0 && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌") && !anyOverStock);
 
   return (
     <main className="min-h-screen bg-gray-50 text-black font-sans antialiased pb-12">
@@ -376,6 +390,14 @@ export default function MovementPage() {
           </div>
           <div className="flex items-center gap-3">
             <LangSwitcher />
+            {isStaff && (
+              <Link
+                href={`/dashboard/shift-handoff${storeId ? `?storeId=${storeId}` : ""}`}
+                className="flex items-center gap-1.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 text-sm font-semibold hover:bg-blue-100 transition-all"
+              >
+                🔄 {t("handoffShortcut")}
+              </Link>
+            )}
             {isStaff && (
               <Link
                 href={`/dashboard/cash-closing${storeId ? `?storeId=${storeId}` : ""}`}
@@ -411,10 +433,10 @@ export default function MovementPage() {
               </p>
             </div>
             <Link
-              href={`/dashboard/cash-closing${storeId ? `?storeId=${storeId}` : ""}`}
+              href={`/dashboard/shift-handoff${storeId ? `?storeId=${storeId}` : ""}`}
               className="shrink-0 rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white hover:bg-amber-600 transition-all"
             >
-              ไปปิดยอด
+              ไปนับส่งต่อกะ
             </Link>
           </div>
         )}
@@ -436,11 +458,11 @@ export default function MovementPage() {
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-2">{t("transactionType")}</label>
                 <div className="grid grid-cols-3 gap-2 bg-gray-100 p-1 rounded-xl">
-                  <button type="button" onClick={() => { setType("MOVE_IN"); setQty(1); }}
+                  <button type="button" onClick={() => setType("MOVE_IN")}
                     className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "MOVE_IN" ? "bg-green-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
                     {t("moveIn")}
                   </button>
-                  <button type="button" onClick={() => { setType("MOVE_OUT"); setQty(1); }}
+                  <button type="button" onClick={() => setType("MOVE_OUT")}
                     className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${type === "MOVE_OUT" ? "bg-red-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900"}`}>
                     {t("moveOut")}
                   </button>
@@ -499,12 +521,13 @@ export default function MovementPage() {
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-xs font-semibold text-gray-500">{t("selectProductLabel")}</label>
-                      {currentProduct && (
+                      {selectedItems.length > 0 && (
                         <span className="text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
-                          {t("currentStock")}: <span className="text-black font-black">{currentProduct.stock}</span> {currentProduct.unit}
+                          {t("selectedItemsLabel")}: <span className="text-black font-black">{selectedItems.length}</span>
                         </span>
                       )}
                     </div>
+                    <p className="text-[11px] text-gray-400 mb-2 -mt-1">{t("selectProductHint")}</p>
 
                     {/* Zone chips */}
                     {(() => {
@@ -560,19 +583,22 @@ export default function MovementPage() {
                       ) : (
                         <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto pr-0.5">
                           {filtered.map(p => {
-                            const isSelected = selectedProductId === p.id;
+                            const isSelected = selectedItems.some((it) => it.productId === p.id);
                             const lowStock = p.stock <= p.minStock;
                             return (
                               <button
                                 key={p.id}
                                 type="button"
-                                onClick={() => { setSelectedProductId(p.id); setQty(1); }}
-                                className={`flex items-center gap-2 text-left rounded-xl border px-3 py-2 transition-all ${
+                                onClick={() => toggleProductSelection(p.id)}
+                                className={`relative flex items-center gap-2 text-left rounded-xl border px-3 py-2 transition-all ${
                                   isSelected
                                     ? "border-gray-900 bg-gray-900 text-white"
                                     : "border-gray-200 bg-white hover:border-gray-400"
                                 }`}
                               >
+                                {isSelected && (
+                                  <span className="absolute top-1 right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-gray-900 text-[10px] font-black">✓</span>
+                                )}
                                 <div className={`w-9 h-9 shrink-0 rounded-lg overflow-hidden grid place-items-center ${isSelected ? "bg-white/10" : "bg-gray-50"}`}>
                                   {p.image ? (
                                     <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
@@ -595,36 +621,56 @@ export default function MovementPage() {
                     })()}
                   </div>
 
-                  {/* Qty */}
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-2">{t("qtyUnitLabel")}</label>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-full sm:w-auto">
-                        {[1, 2, 3, 4, 5].map((num) => (
-                          <button key={num} type="button" onClick={() => setQty(num)}
-                            className={`w-11 h-10 rounded-lg text-sm font-bold transition-all ${Number(qty) === num ? "bg-black text-white shadow-sm" : "text-gray-500 hover:text-black"}`}>
-                            {num}
-                          </button>
-                        ))}
+                  {/* รายการที่เลือก — ปรับจำนวนทีละรายการ */}
+                  {selectedItems.length > 0 && (
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-2">{t("qtyUnitLabel")}</label>
+                      <div className="space-y-2">
+                        {selectedItems.map((item) => {
+                          const product = products.find((p) => p.id === item.productId);
+                          if (!product) return null;
+                          const over = type === "MOVE_OUT" && item.qty > product.stock;
+                          return (
+                            <div key={item.productId} className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition-all ${over ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`}>
+                              <div className="w-8 h-8 shrink-0 rounded-lg overflow-hidden bg-white grid place-items-center border border-gray-100">
+                                {product.image ? (
+                                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-xs">📦</span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-semibold text-gray-800 truncate">{product.name}</p>
+                                <p className="text-[11px] text-gray-400">{t("currentStock")}: {product.stock} {product.unit}</p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button type="button" onClick={() => updateItemQty(item.productId, item.qty - 1)}
+                                  className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:border-black transition-all">
+                                  −
+                                </button>
+                                <input
+                                  type="number" min="1" value={item.qty}
+                                  onChange={(e) => updateItemQty(item.productId, Number(e.target.value))}
+                                  className={`w-12 text-center rounded-lg border py-1 text-sm font-bold outline-none transition-all ${over ? "border-red-400 bg-red-50 text-red-900" : "border-gray-200 bg-white focus:border-black"}`}
+                                />
+                                <button type="button" onClick={() => updateItemQty(item.productId, item.qty + 1)}
+                                  className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:border-black transition-all">
+                                  +
+                                </button>
+                              </div>
+                              <button type="button" onClick={() => removeItem(item.productId)}
+                                className="shrink-0 text-gray-300 hover:text-red-500 transition-all" aria-label={t("removeItemBtn")}>
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex flex-1 items-center gap-3">
-                        <input
-                          type="number" min="1" placeholder={t("qtyPlaceholder")} value={qty}
-                          onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))}
-                          className={`w-full rounded-xl border py-2.5 px-4 text-sm text-center font-bold outline-none transition-all ${isOverStocked ? "border-red-500 bg-red-50 text-red-900" : "border-gray-200 bg-gray-50 focus:border-black focus:bg-white"}`}
-                          required
-                        />
-                        <span className="text-sm font-bold text-gray-500 min-w-[80px] bg-gray-100 border border-gray-200 rounded-xl py-2.5 text-center">
-                          {currentProduct ? currentProduct.unit : t("unitFallback")}
-                        </span>
-                      </div>
+                      {anyOverStock && (
+                        <p className="text-xs font-semibold text-red-600 mt-2">{t("overStockSummary")}</p>
+                      )}
                     </div>
-                    {isOverStocked && (
-                      <p className="text-xs font-semibold text-red-600 mt-2">
-                        {t("overStockWarning")} {currentProduct.stock} {currentProduct.unit})
-                      </p>
-                    )}
-                  </div>
+                  )}
 
                   {/* Note + Quick Notes */}
                   <div>
