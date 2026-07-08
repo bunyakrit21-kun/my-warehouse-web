@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   try {
     const {
       storeId: bodyStoreId, shiftId, cashSales, countedAmount, countMethod,
-      denominationBreakdown, discrepancyReason, discrepancyNote, pin, isDayClose,
+      denominationBreakdown, discrepancyReason, discrepancyNote, pin, isDayClose, keptInDrawer,
     } = await request.json();
 
     if (countedAmount === undefined || countedAmount === null || !Number.isFinite(Number(countedAmount)) || Number(countedAmount) < 0) {
@@ -52,6 +52,17 @@ export async function POST(request: Request) {
     // ปิดร้านประจำวัน: client ส่งมาชัดๆ ได้ ไม่ส่งมาก็ใช้ค่าที่ระบบเดา (กะสุดท้ายตามเวลา)
     const dayClose = typeof isDayClose === "boolean" ? isDayClose : suggestDayClose;
 
+    // เงินที่นับแยกเหลือไว้ในเก๊ะจริง (ขั้นตอนที่ 1 ของการปิดร้าน) — ไม่ส่งมาใช้ค่าที่ตั้งไว้
+    const kept = dayClose ? (keptInDrawer !== undefined ? Number(keptInDrawer) : drawerFloat) : null;
+    if (dayClose) {
+      if (!Number.isFinite(kept!) || kept! < 0) {
+        return NextResponse.json({ error: "จำนวนเงินที่เหลือไว้ในเก๊ะไม่ถูกต้อง" }, { status: 400 });
+      }
+      if (kept! > Number(countedAmount)) {
+        return NextResponse.json({ error: "เงินที่เหลือไว้ในเก๊ะมากกว่ายอดที่นับได้ทั้งหมด — เช็คตัวเลขอีกครั้ง" }, { status: 400 });
+      }
+    }
+
     // Flag when whoever confirmed with their PIN wasn't on the schedule for this shift —
     // but only if the shift actually has assignments (stores without a schedule aren't flagged).
     let scheduleMismatch = false;
@@ -68,12 +79,12 @@ export async function POST(request: Request) {
         INSERT INTO cash_closings (
           store_id, shift_id, business_date, opening_float, cash_sales, withdrawals_total,
           expected_amount, counted_amount, difference, count_method, denomination_breakdown,
-          discrepancy_reason, discrepancy_note, closed_by_user_id, schedule_mismatch, is_day_close
+          discrepancy_reason, discrepancy_note, closed_by_user_id, schedule_mismatch, is_day_close, kept_in_drawer
         ) VALUES (
           ${storeId}, ${resolvedShiftId}, ${businessDate}::date, ${openingFloat}, ${salesNum}, ${withdrawalsTotal},
           ${expectedAmount}, ${countedAmount}, ${difference}, ${countMethod},
           ${denominationBreakdown ? sql.json(denominationBreakdown) : null},
-          ${discrepancyReason ?? null}, ${discrepancyNote ?? null}, ${employee.id}, ${scheduleMismatch}, ${dayClose}
+          ${discrepancyReason ?? null}, ${discrepancyNote ?? null}, ${employee.id}, ${scheduleMismatch}, ${dayClose}, ${kept}
         )
         RETURNING id
       `;
@@ -96,16 +107,21 @@ export async function POST(request: Request) {
         }
       }
 
-      // ปิดร้าน: เก็บเงินส่วนที่เกิน "เงินในเก๊ะ" ออกจากลิ้นชัก → บัญชี "เงินเก็บ"
-      // ยอดเงินสดในบัญชีจะเหลือเท่า drawerFloat พร้อมเริ่มวันใหม่
+      // ปิดร้าน: เงินที่เก็บออก = ยอดนับทั้งเก๊ะ − เงินที่นับแยกเหลือไว้จริง → โอนเข้าบัญชี "เงินเก็บ"
+      // ยอดเงินสดในบัญชีจะเหลือเท่ากับเงินที่อยู่ในเก๊ะจริง พร้อมเริ่มวันใหม่
       if (dayClose) {
-        await postDayCloseTransfer(sql, storeId, row.id, Number(countedAmount) - drawerFloat, businessDate);
+        await postDayCloseTransfer(sql, storeId, row.id, Number(countedAmount) - kept!, businessDate);
       }
 
       return row.id;
     });
 
-    return NextResponse.json({ success: true, id: closingId, expectedAmount, difference }, { status: 201 });
+    return NextResponse.json({
+      success: true, id: closingId, expectedAmount, difference,
+      isDayClose: dayClose, keptInDrawer: kept,
+      cashOut: dayClose ? Number(countedAmount) - kept! : null,
+      closedByName: employee.name,
+    }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }

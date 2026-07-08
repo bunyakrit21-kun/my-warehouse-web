@@ -122,7 +122,7 @@ export async function getCashClosingExpected(storeId: string): Promise<CashClosi
   const drawerFloat = Number(store?.drawer_float ?? 0);
 
   const [lastClosing] = await sql`
-    SELECT cc.counted_amount, cc.created_at, cc.is_day_close,
+    SELECT cc.counted_amount, cc.created_at, cc.is_day_close, cc.kept_in_drawer,
            u.name as closed_by_name, s.name as shift_name
     FROM cash_closings cc
     LEFT JOIN users u ON u.id = cc.closed_by_user_id
@@ -130,8 +130,10 @@ export async function getCashClosingExpected(storeId: string): Promise<CashClosi
     WHERE cc.store_id = ${storeId} ORDER BY cc.created_at DESC LIMIT 1
   `;
   const openingIsNewDay = !lastClosing || !!lastClosing.is_day_close;
+  // หลังปิดร้าน: วันใหม่เปิดด้วยเงินที่ "นับแยกเหลือไว้จริง" ตอนปิด (kept_in_drawer)
+  // ปิดยอดรุ่นเก่าที่ยังไม่มีค่านี้ fallback เป็นค่า drawer_float ที่ตั้งไว้
   const openingFloat = lastClosing
-    ? (lastClosing.is_day_close ? drawerFloat : Number(lastClosing.counted_amount))
+    ? (lastClosing.is_day_close ? Number(lastClosing.kept_in_drawer ?? drawerFloat) : Number(lastClosing.counted_amount))
     : drawerFloat;
   const openingFrom = lastClosing && !lastClosing.is_day_close
     ? { closedByName: lastClosing.closed_by_name as string | null, shiftName: lastClosing.shift_name as string | null, createdAt: String(lastClosing.created_at) }

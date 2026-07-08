@@ -58,6 +58,13 @@ export default function ClosingContent({ mode }: { mode: "handoff" | "dayclose" 
   const [withdrawalsExpanded, setWithdrawalsExpanded] = useState(false);
 
   const [cashSales, setCashSales] = useState("");
+  // ขั้นตอนที่ 1 ของการปิดร้าน: เงินที่นับแยกเหลือไว้ในเก๊ะจริง (null = ยังไม่แก้ ใช้ค่าที่ตั้งไว้)
+  const [keptInput, setKeptInput] = useState<string | null>(null);
+  const [closedSlip, setClosedSlip] = useState<{
+    businessDate: string; shiftName: string | null; closedByName: string;
+    opening: number; sales: number; withdrawals: number; expected: number;
+    counted: number; difference: number; cashOut: number; kept: number;
+  } | null>(null);
   const [countMethod, setCountMethod] = useState<"quick" | "detailed">("quick");
   const [quickCounted, setQuickCounted] = useState("");
   const [denomQty, setDenomQty] = useState<Record<number, number>>({});
@@ -115,7 +122,10 @@ export default function ClosingContent({ mode }: { mode: "handoff" | "dayclose" 
   const shiftCash = data ? countedAmount - data.openingFloat + data.withdrawalsTotal : 0;
   // หน้านี้ถูกใช้สองโหมด: "นับเปลี่ยนกะ" (ส่งต่อระหว่างวัน ไม่เก็บเงินออก) กับ "ปิดยอดสิ้นวัน" (เก็บเงินออก)
   const dayClose = mode === "dayclose";
-  const cashToKeep = data ? Math.max(0, countedAmount - data.drawerFloat) : 0;
+  // เงินที่นับแยกเหลือไว้ในเก๊ะ (นับก่อนเป็นขั้นแรก) — ค่าเริ่มต้นคือเงินในเก๊ะที่ตั้งไว้
+  const kept = keptInput !== null ? (Number(keptInput) || 0) : (data?.drawerFloat ?? 0);
+  // เงินที่เก็บออกให้เจ้าของ = ยอดนับทั้งเก๊ะ − เงินที่เหลือไว้ (คือ "ยอดปิด" ที่พิมพ์ในใบสรุป)
+  const cashOut = Math.max(0, countedAmount - kept);
   const hasCounted = countMethod === "quick" ? quickCounted !== "" : Object.values(denomQty).some(q => q > 0);
 
   const selectedShift = data?.shifts.find(s => s.id === selectedShiftId) ?? null;
@@ -148,17 +158,31 @@ export default function ClosingContent({ mode }: { mode: "handoff" | "dayclose" 
           discrepancyNote: difference !== 0 ? discrepancyNote : null,
           pin: pinStr,
           isDayClose: dayClose,
+          keptInDrawer: dayClose ? kept : undefined,
         }),
       });
+      const result = await res.json();
       if (!res.ok) {
-        const err = await res.json();
-        setPinError(err.error || "เกิดข้อผิดพลาด");
+        setPinError(result.error || "เกิดข้อผิดพลาด");
         setSubmitting(false);
         return;
       }
       setSubmitting(false);
       setSavedOk(true);
-      setTimeout(() => { router.push("/dashboard"); }, 1400);
+      if (dayClose && data) {
+        // ปิดร้าน: แสดงใบสรุปให้พิมพ์ก่อน ไม่รีบพากลับหน้าแรก
+        setPinOpen(false);
+        setClosedSlip({
+          businessDate: data.businessDate.slice(0, 10),
+          shiftName: selectedShift?.name ?? data.shift?.name ?? null,
+          closedByName: result.closedByName ?? "-",
+          opening: data.openingFloat, sales: Number(cashSales) || 0,
+          withdrawals: data.withdrawalsTotal, expected: expectedAmount,
+          counted: countedAmount, difference, cashOut: countedAmount - kept, kept,
+        });
+      } else {
+        setTimeout(() => { router.push("/dashboard"); }, 1400);
+      }
     } catch {
       setPinError("เกิดข้อผิดพลาด กรุณาลองใหม่");
       setSubmitting(false);
@@ -328,30 +352,46 @@ export default function ClosingContent({ mode }: { mode: "handoff" | "dayclose" 
             )}
           </div>
 
-          {/* สรุปเก็บเงินออก (เฉพาะปิดยอดสิ้นวัน) */}
+          {/* ปิดร้านประจำวัน — 3 ขั้นตามหน้างานจริง */}
           {data && mode === "dayclose" && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
               <p className="text-sm font-bold text-gray-900">ปิดร้านประจำวัน</p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                เงินส่วนที่เกิน &quot;เงินในเก๊ะ&quot; จะถูกบันทึกว่าเก็บออกให้เจ้าของร้าน และวันใหม่เริ่มนับจากเงินในเก๊ะ {formatCurrency(data.drawerFloat, country)}
-              </p>
-              {hasCounted && (
-                <div className="mt-3 pt-3 border-t border-dashed border-gray-200 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">เงินที่ต้องเก็บออกจากเก๊ะ</span>
-                    <span className="font-bold text-gray-900">{formatCurrency(cashToKeep, country)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">เหลือไว้ในเก๊ะ (เงินทอนพรุ่งนี้)</span>
-                    <span className="font-bold text-emerald-600">{formatCurrency(Math.min(countedAmount, data.drawerFloat), country)}</span>
-                  </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">
+                  ① เงินที่นับแยกเหลือไว้ในเก๊ะ (นับก่อน จากแบงก์ใหญ่ไปเล็ก)
+                </label>
+                <input type="number" inputMode="decimal" min={0} step="1"
+                  value={keptInput ?? String(data.drawerFloat)}
+                  onChange={e => setKeptInput(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-semibold outline-none focus:border-emerald-400 focus:bg-white transition-all" />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  เงินทอนสำหรับเปิดร้านพรุ่งนี้ — ค่าที่ตั้งไว้ของร้านคือ {formatCurrency(data.drawerFloat, country)}
+                </p>
+              </div>
+              <p className="text-[11px] text-gray-400">② กรอก &quot;ยอดที่นับได้ (รวม)&quot; ด้านบน = เงินทั้งหมดในเก๊ะรวมส่วนที่แยกไว้แล้ว</p>
+              <div className="pt-2 border-t border-dashed border-gray-200 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500">③ เงินที่เก็บออกให้เจ้าของ (ยอดปิด)</span>
+                  {!hasCounted ? (
+                    <span className="text-sm text-gray-300">—</span>
+                  ) : (
+                    <span className="text-base font-bold text-gray-900">{formatCurrency(cashOut, country)}</span>
+                  )}
                 </div>
-              )}
-              <p className="text-[11px] text-gray-400 mt-3 pt-2 border-t border-gray-50">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">เหลือไว้ในเก๊ะ (เปิดร้านพรุ่งนี้)</span>
+                  <span className="font-bold text-emerald-600">{formatCurrency(Math.min(countedAmount, kept), country)}</span>
+                </div>
+                {hasCounted && kept > countedAmount && (
+                  <p className="text-[11px] font-bold text-red-500">เงินที่เหลือไว้มากกว่ายอดที่นับได้ — เช็คตัวเลขอีกครั้ง</p>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400 pt-2 border-t border-gray-50">
                 แค่เปลี่ยนกะ ไม่ได้ปิดร้าน? <Link href={`/dashboard/shift-handoff${storeId ? `?storeId=${storeId}` : ""}`} className="font-bold text-gray-600 underline">ไปหน้านับเปลี่ยนกะ</Link>
               </p>
             </div>
           )}
+
           {data && mode === "handoff" && (
             <div className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-xs text-gray-400">
@@ -433,6 +473,49 @@ export default function ClosingContent({ mode }: { mode: "handoff" | "dayclose" 
             >
               ยืนยันปิดยอด
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ใบสรุปปิดยอด — โชว์หลังปิดร้านสำเร็จ กดพิมพ์ได้ */}
+      {closedSlip && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4 print:bg-white print:p-0">
+          <style>{`@media print { body * { visibility: hidden; } .print-slip, .print-slip * { visibility: visible; } .print-slip { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border-radius: 0 !important; } .print-hide { display: none !important; } }`}</style>
+          <div className="print-slip bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="text-center border-b border-dashed border-gray-300 pb-3 mb-3">
+              <p className="text-base font-bold text-gray-900">ใบสรุปปิดยอดประจำวัน</p>
+              <p className="text-xs text-gray-500 mt-1">
+                วันทำการ {closedSlip.businessDate}{closedSlip.shiftName ? ` · ${closedSlip.shiftName}` : ""} · ปิดโดย {closedSlip.closedByName}
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">ยอดรับต่อจากกะก่อน</span><span className="font-semibold">{formatCurrency(closedSlip.opening, country)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">ยอดขายเงินสด</span><span className="font-semibold">{formatCurrency(closedSlip.sales, country)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">เบิกออกระหว่างวัน</span><span className="font-semibold text-red-500">−{formatCurrency(closedSlip.withdrawals, country)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">ยอดที่ควรมี</span><span className="font-semibold">{formatCurrency(closedSlip.expected, country)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">นับได้จริง (ทั้งเก๊ะ)</span><span className="font-semibold">{formatCurrency(closedSlip.counted, country)}</span></div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">ผลต่าง</span>
+                <span className={`font-bold ${closedSlip.difference === 0 ? "text-gray-700" : closedSlip.difference > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                  {closedSlip.difference === 0 ? "ตรง" : `${closedSlip.difference > 0 ? "+" : "-"}${formatCurrency(Math.abs(closedSlip.difference), country)}`}
+                </span>
+              </div>
+              <div className="border-t border-dashed border-gray-300 mt-2 pt-2 flex justify-between text-base">
+                <span className="font-bold text-gray-900">เงินเก็บออกให้เจ้าของ</span>
+                <span className="font-black text-gray-900">{formatCurrency(closedSlip.cashOut, country)}</span>
+              </div>
+              <div className="flex justify-between"><span className="text-gray-500">เหลือไว้ในเก๊ะ (พรุ่งนี้)</span><span className="font-bold text-emerald-600">{formatCurrency(closedSlip.kept, country)}</span></div>
+            </div>
+            <div className="print-hide flex gap-2 mt-5">
+              <button type="button" onClick={() => window.print()}
+                className="flex-1 rounded-xl border border-gray-300 py-2.5 text-sm font-bold text-gray-700 hover:border-black transition-all">
+                🖨️ พิมพ์
+              </button>
+              <button type="button" onClick={() => router.push("/dashboard")}
+                className="flex-1 rounded-xl bg-black text-white py-2.5 text-sm font-bold hover:bg-gray-800 transition-all">
+                เสร็จสิ้น
+              </button>
+            </div>
           </div>
         </div>
       )}

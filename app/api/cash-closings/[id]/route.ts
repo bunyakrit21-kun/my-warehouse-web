@@ -139,9 +139,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           denomination_breakdown = ${newBreakdown ? sql.json(newBreakdown) : null},
           discrepancy_reason = ${discrepancyReason ?? null},
           discrepancy_note = ${discrepancyNote ?? null},
+          business_date = ${newBusinessDate}::date,
           edit_history = ${historyJson}
         WHERE id = ${id}
       `;
+
+      // ย้ายวันทำการ → รายการบัญชีที่ผูกกับการปิดยอดนี้ (รายรับ + โอนเก็บเงิน) ย้ายวันตาม
+      if (changes.businessDate) {
+        await sql`
+          UPDATE transactions SET business_date = ${newBusinessDate}::date
+          WHERE source IN ('cash_closing', 'cash_closing_dayclose') AND source_ref_id = ${id}
+        `;
+      }
 
       // spec-07 section 5.2: corrections flow one-way from cash_closings into the ledger.
       // Nudge the linked transaction (if any — only the day's last-shift closing has one,
