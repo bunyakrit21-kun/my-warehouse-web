@@ -229,6 +229,23 @@ function AccountingContent() {
     await loadAll(storeId, monthDate);
   };
 
+  const deleteTx = async () => {
+    if (!editingTx || editSubmitting) return;
+    setEditError("");
+    if (!editPassword) return setEditError("กรุณายืนยันรหัสผ่านก่อนลบ");
+    if (!window.confirm("ยืนยันลบรายการนี้? ยอดบัญชีจะถูกปรับคืนอัตโนมัติ")) return;
+    setEditSubmitting(true);
+    const res = await fetch(`/api/transactions/${editingTx.id}`, {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: editPassword }),
+    });
+    const data = await res.json();
+    setEditSubmitting(false);
+    if (!res.ok) return setEditError(data.error);
+    setEditingTx(null);
+    await loadAll(storeId, monthDate);
+  };
+
   const createAccount = async () => {
     if (!newAccountName.trim()) return setManageError("กรุณาระบุชื่อบัญชี");
     setManageBusy(true); setManageError("");
@@ -589,6 +606,10 @@ function AccountingContent() {
             </div>
             {editError && <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 mt-4">{editError}</p>}
             <div className="flex gap-2 mt-6">
+              <button type="button" onClick={deleteTx} disabled={editSubmitting}
+                className="rounded-xl border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-all disabled:opacity-40">
+                ลบ
+              </button>
               <button type="button" onClick={() => setEditingTx(null)} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-gray-400 transition-all">ยกเลิก</button>
               <button type="submit" disabled={editSubmitting} className="flex-1 rounded-xl bg-black py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition-all disabled:bg-gray-200 disabled:text-gray-400">
                 {editSubmitting ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}

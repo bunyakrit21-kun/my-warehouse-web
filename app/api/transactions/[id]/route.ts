@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
+import { isWithinEditWindow, EDIT_WINDOW_ERROR, logRecordEdit } from "@/lib/recordEdit";
 import { isRateLimited } from "@/lib/rateLimit";
 
 /**
@@ -44,6 +45,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const storeId = await resolveStoreId(user, String(existing.store_id));
     if (!storeId) return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
+
+    if (!isWithinEditWindow(existing.created_at)) {
+      return NextResponse.json({ error: EDIT_WINDOW_ERROR }, { status: 403 });
+    }
 
     if (existing.source === "cash_closing") {
       return NextResponse.json(
@@ -102,5 +107,79 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const message = error instanceof Error ? error.message : "";
     const known = ["ไม่พบหมวดหมู่"];
     return NextResponse.json({ error: known.includes(message) ? message : "เกิดข้อผิดพลาด" }, { status: 400 });
+  }
+}
+
+/**
+ * ลบรายการบัญชีย้อนหลัง (ภายใน 7 วัน, ต้องยืนยันรหัสผ่านสดเหมือนการแก้ไข)
+ * ย้อนยอดบัญชีที่รายการนี้เคยขยับไว้กลับคืน แล้วบันทึก audit ลง record_edits
+ * รายการจากการปิดยอด (source='cash_closing') ลบไม่ได้ — ต้องแก้ที่ประวัติปิดยอด
+ */
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+
+  if (isRateLimited(`tx-edit-auth:${user.id}`, 5, 5 * 60 * 1000)) {
+    return NextResponse.json({ error: "ลองยืนยันตัวตนผิดหลายครั้งเกินไป กรุณาลองใหม่ในอีกสักครู่" }, { status: 429 });
+  }
+
+  try {
+    const { password } = await request.json();
+    if (!password) return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านก่อนลบรายการ" }, { status: 400 });
+
+    const [userRow] = await sql`SELECT password FROM users WHERE id = ${user.id} AND active = true`;
+    if (!userRow) return NextResponse.json({ error: "ไม่พบบัญชีผู้ใช้" }, { status: 404 });
+    const passwordOk = await bcrypt.compare(password, userRow.password);
+    if (!passwordOk) return NextResponse.json({ error: "รหัสผ่านไม่ถูกต้อง" }, { status: 401 });
+
+    const [existing] = await sql`SELECT * FROM transactions WHERE id = ${id}`;
+    if (!existing) return NextResponse.json({ error: "ไม่พบรายการ" }, { status: 404 });
+
+    const storeId = await resolveStoreId(user, String(existing.store_id));
+    if (!storeId) return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
+
+    if (!isWithinEditWindow(existing.created_at)) {
+      return NextResponse.json({ error: EDIT_WINDOW_ERROR }, { status: 403 });
+    }
+    if (existing.source === "cash_closing") {
+      return NextResponse.json(
+        { error: "รายการนี้มาจากการปิดยอดเงินสด ลบโดยตรงไม่ได้ ต้องแก้ที่ประวัติปิดยอดแทน" },
+        { status: 400 }
+      );
+    }
+
+    await sql.begin(async (sql) => {
+      const [tx] = await sql`SELECT * FROM transactions WHERE id = ${id} FOR UPDATE`;
+      if (!tx) throw new Error("ไม่พบรายการ");
+
+      const amount = Number(tx.amount);
+      if (tx.type === "income") {
+        await sql`UPDATE accounts SET current_balance = current_balance - ${amount} WHERE id = ${tx.account_id}`;
+      } else if (tx.type === "expense") {
+        await sql`UPDATE accounts SET current_balance = current_balance + ${amount} WHERE id = ${tx.account_id}`;
+      } else {
+        // transfer: เงินเคยออกจากบัญชีต้นทางไปเข้าปลายทาง — ย้อนกลับ
+        await sql`UPDATE accounts SET current_balance = current_balance + ${amount} WHERE id = ${tx.account_id}`;
+        await sql`UPDATE accounts SET current_balance = current_balance - ${amount} WHERE id = ${tx.transfer_to_account_id}`;
+      }
+
+      await logRecordEdit(sql, {
+        storeId: tx.store_id, recordType: "transaction", recordId: tx.id, action: "delete", editedBy: user.id,
+        oldValues: {
+          type: tx.type, amount, note: tx.note, categoryId: tx.category_id,
+          accountId: tx.account_id, transferToAccountId: tx.transfer_to_account_id,
+          businessDate: String(tx.business_date),
+        },
+      });
+      await sql`DELETE FROM transaction_edit_history WHERE transaction_id = ${id}`;
+      await sql`DELETE FROM transactions WHERE id = ${id}`;
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    return NextResponse.json({ error: message === "ไม่พบรายการ" ? message : "เกิดข้อผิดพลาด" }, { status: 400 });
   }
 }

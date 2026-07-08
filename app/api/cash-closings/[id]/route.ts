@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 import { syncCashClosingTransaction } from "@/lib/accounting";
+import { isWithinEditWindow, EDIT_WINDOW_ERROR } from "@/lib/recordEdit";
 import { isRateLimited } from "@/lib/rateLimit";
 
 const VALID_METHODS = ["quick", "detailed"];
@@ -26,7 +27,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   try {
-    const [existing] = await sql`SELECT store_id FROM cash_closings WHERE id = ${id}`;
+    const [existing] = await sql`SELECT store_id, created_at FROM cash_closings WHERE id = ${id}`;
     if (!existing) return NextResponse.json({ error: "ไม่พบรายการปิดยอด" }, { status: 404 });
 
     // resolveStoreId ignores its requestedStoreId argument for staff-type tokens (it always
@@ -53,6 +54,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // official record of how much cash was actually counted, so it needs more than just an
     // existing admin/manager session.
     const { countedAmount, countMethod, denominationBreakdown, discrepancyReason, discrepancyNote, password } = body;
+
+    // แก้ตัวเลขย้อนหลังได้ภายใน 7 วันเท่านั้น (การเซ็นรับทราบด้านบนไม่จำกัดเวลา)
+    if (!isWithinEditWindow(existing.created_at)) {
+      return NextResponse.json({ error: EDIT_WINDOW_ERROR }, { status: 403 });
+    }
 
     if (!password) return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านก่อนบันทึกการแก้ไข" }, { status: 400 });
     if (isRateLimited(`closing-edit-auth:${user.id}`, 5, 5 * 60 * 1000)) {
