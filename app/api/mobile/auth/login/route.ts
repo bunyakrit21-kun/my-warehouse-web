@@ -1,30 +1,38 @@
 import { NextResponse } from "next/server";
-import sql from "@/lib/db";
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { verifyEmailPassword } from "@/lib/passwordAuth";
+import { isRateLimited, getClientIp } from "@/lib/rateLimit";
 
-// Mobile admin login — returns token as JSON (not cookie)
+const MAX_ATTEMPTS_PER_IP = 20;
+const IP_WINDOW_MS = 15 * 60 * 1000;
+
+// Mobile admin login — returns token as JSON (not cookie).
+// Uses the same verifyEmailPassword as web login so the lockout
+// protection can't be bypassed by switching endpoints.
 export async function POST(request: Request) {
   try {
+    if (isRateLimited(`login:${getClientIp(request)}`, MAX_ATTEMPTS_PER_IP, IP_WINDOW_MS)) {
+      return NextResponse.json({ error: "มีการพยายามเข้าสู่ระบบบ่อยเกินไป กรุณาลองใหม่ภายหลัง" }, { status: 429 });
+    }
+
     const { email, password } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: "กรุณากรอกอีเมลและรหัสผ่าน" }, { status: 400 });
     }
 
-    const [user] = await sql`
-      SELECT id, name, email, password, role, active
-      FROM users WHERE email = ${email}
-    `;
+    const result = await verifyEmailPassword(email, password);
 
-    if (!user || !user.active) {
-      return NextResponse.json({ error: "ไม่พบบัญชีผู้ใช้นี้" }, { status: 401 });
+    if (!result.ok) {
+      if (result.reason === "locked") {
+        return NextResponse.json(
+          { error: `ลองรหัสผ่านผิดหลายครั้งเกินไป กรุณาลองใหม่ในอีก ${result.retryAfterMinutes} นาที` },
+          { status: 429 }
+        );
+      }
+      return NextResponse.json({ error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" }, { status: 401 });
     }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return NextResponse.json({ error: "รหัสผ่านไม่ถูกต้อง" }, { status: 401 });
-    }
+    const user = result.user;
 
     const token = jwt.sign(
       { id: user.id, name: user.name, email: user.email, role: user.role },

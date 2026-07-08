@@ -38,6 +38,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   try {
     const { email, role } = await request.json();
+
+    const VALID_MEMBER_ROLES = ["staff", "manager"];
+    if (role !== undefined && !VALID_MEMBER_ROLES.includes(role)) {
+      return NextResponse.json({ error: "role ไม่ถูกต้อง (staff หรือ manager เท่านั้น)" }, { status: 400 });
+    }
+
     const [targetUser] = await sql`SELECT id FROM users WHERE email = ${email}`;
     if (!targetUser) return NextResponse.json({ error: "ไม่พบผู้ใช้นี้ในระบบ" }, { status: 404 });
 

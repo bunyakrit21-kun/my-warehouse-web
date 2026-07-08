@@ -68,6 +68,8 @@ const th = {
   cashClosingAlertsTitle: "รายการปิดยอดที่ต้องตรวจสอบ",
   cashClosingAlertBadge: "ต้องตรวจสอบ",
   scheduleMismatchLabel: "ไม่ตรงตารางกะ",
+  shiftCashLabel: "เงินสดของกะนี้",
+  countedTotalLabel: "นับได้ทั้งลิ้นชัก",
   discrepancyAmountLabel: "ยอดไม่ตรง",
   acknowledgeBtn: "รับทราบ",
   noCashClosingAlerts: "ไม่มีรายการต้องตรวจสอบ",

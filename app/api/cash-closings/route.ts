@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
-import { getCashClosingExpected, isLastShiftOfDay } from "@/lib/cashClosing";
+import { getCashClosingExpected } from "@/lib/cashClosing";
 import { verifyStorePin } from "@/lib/pin";
 import { postCashClosingTransaction } from "@/lib/accounting";
 
@@ -76,19 +76,21 @@ export async function POST(request: Request) {
         RETURNING id
       `;
 
-      // Only the day's LAST shift posts to the accounting ledger — earlier same-day shift
-      // closings are handoff/reconciliation checkpoints, not an actual cash withdrawal.
-      // Post the NEW cash since the ledger's own running balance (not since the immediately
-      // prior shift's count, which for a non-last shift wouldn't include intermediate shifts —
-      // see isLastShiftOfDay + syncCashClosingTransaction for why this must be balance-relative).
-      if (isLastShiftOfDay(shifts, resolvedShiftId)) {
+      // EVERY shift's closing posts its own ledger entry (per-shift income in the
+      // accounting page, and stores whose shift lineup varies day-to-day never lose
+      // a day's revenue). Amount is balance-relative — counted minus the ledger's
+      // running cash balance — because counting is cumulative across shifts; this
+      // keeps ledger balance == drawer after every closing, and each entry equals
+      // the cash that shift added. See postCashClosingTransaction.
+      {
         const [account] = await sql`
           SELECT current_balance FROM accounts WHERE store_id = ${storeId} AND is_default_cash = true AND archived_at IS NULL
           FOR UPDATE
         `;
         if (account) {
           const ledgerAmount = Number(countedAmount) - Number(account.current_balance);
-          await postCashClosingTransaction(sql, storeId, row.id, ledgerAmount, businessDate);
+          const shiftName = shifts.find(s => s.id === resolvedShiftId)?.name ?? null;
+          await postCashClosingTransaction(sql, storeId, row.id, ledgerAmount, businessDate, shiftName);
         }
       }
 

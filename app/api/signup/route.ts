@@ -73,12 +73,10 @@ export async function POST(request: Request) {
         INSERT INTO transaction_categories (store_id, name, type, is_system)
         VALUES (${store.id}, 'ยอดขายประจำวัน', 'income', true)
       `;
-      for (const catName of DEFAULT_EXPENSE_CATEGORIES) {
-        await sql`
-          INSERT INTO transaction_categories (store_id, name, type, is_system)
-          VALUES (${store.id}, ${catName}, 'expense', true)
-        `;
-      }
+      await sql`
+        INSERT INTO transaction_categories (store_id, name, type, is_system)
+        SELECT ${store.id}, name, 'expense', true FROM unnest(${DEFAULT_EXPENSE_CATEGORIES}::text[]) AS name
+      `;
 
       return { user, store };
     });

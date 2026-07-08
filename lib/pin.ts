@@ -20,10 +20,13 @@ export async function findUserByPin(storeId: number | string, pin: string): Prom
   const candidates = await sql<{ id: number; name: string; role: string; pin: string | null }[]>`
     SELECT id, name, role, pin FROM users WHERE store_id = ${storeId} AND active = true AND pin IS NOT NULL
   `;
-  for (const c of candidates) {
-    if (await bcrypt.compare(pin, c.pin!)) {
-      return { id: c.id, name: c.name, role: c.role };
-    }
+  // เทียบทุก candidate พร้อมกัน — bcrypt.compare ตัวละ ~50-100ms
+  // ถ้าไล่ทีละคนร้านที่มีพนักงาน 10 คนจะรอเกือบวินาทีทุกครั้งที่กด PIN
+  const results = await Promise.all(candidates.map(c => bcrypt.compare(pin, c.pin!)));
+  const idx = results.findIndex(Boolean);
+  if (idx >= 0) {
+    const c = candidates[idx];
+    return { id: c.id, name: c.name, role: c.role };
   }
   return null;
 }

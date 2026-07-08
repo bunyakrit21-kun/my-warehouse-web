@@ -20,6 +20,15 @@ interface CashClosing {
   difference: string; shiftName: string | null; closedByName: string | null; createdAt: string;
 }
 interface OverdueShift { overdue: boolean; shift: { id: number; name: string } | null; }
+interface ShiftClosingInfo {
+  id: number; countedAmount: number; shiftCash: number; difference: number;
+  closedByName: string | null; createdAt: string;
+}
+interface ShiftTodayStatus {
+  id: number; name: string; startTime: string; endTime: string | null; color: string | null;
+  isCurrent: boolean; scheduledStaff: string[]; closing: ShiftClosingInfo | null;
+}
+interface TodayStatus { businessDate: string; shifts: ShiftTodayStatus[]; }
 interface Transaction { id: number; type: "income" | "expense" | "transfer"; amount: string; }
 interface AccountingSummary { income: number; expense: number; count: number; }
 
@@ -73,6 +82,7 @@ export default function DashboardPage() {
   const [latestClosing, setLatestClosing] = useState<CashClosing | null>(null);
   const [accountingSummary, setAccountingSummary] = useState<AccountingSummary | null>(null);
   const [overdueShift, setOverdueShift] = useState<OverdueShift["shift"]>(null);
+  const [todayStatus, setTodayStatus] = useState<TodayStatus | null>(null);
   const [stockSearch, setStockSearch] = useState("");
   const [stockTab, setStockTab] = useState<"all" | StockStatus>("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -126,6 +136,11 @@ export default function DashboardPage() {
     setAccountingSummary({ income, expense, count: data.length });
   };
 
+  const fetchTodayStatusForStore = async (sid: number) => {
+    const data: TodayStatus | null = await fetch(`/api/cash-closings/today-status?storeId=${sid}`).then(r => r.ok ? r.json() : null);
+    setTodayStatus(data);
+  };
+
   const fetchOverdueShiftForStore = async (sid: number) => {
     const data: OverdueShift | null = await fetch(`/api/cash-closings/overdue?storeId=${sid}`).then(r => r.ok ? r.json() : null);
     setOverdueShift(data?.overdue ? data.shift : null);
@@ -139,6 +154,7 @@ export default function DashboardPage() {
     fetchLatestClosingForStore(sid),
     fetchAccountingSummaryForStore(sid),
     fetchOverdueShiftForStore(sid),
+    fetchTodayStatusForStore(sid),
   ]);
 
   useEffect(() => {
@@ -537,12 +553,50 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ปิดยอดล่าสุด */}
+          {/* ปิดกะวันนี้ — สถานะทุกกะ เชื่อมตารางเวร + การปิดยอด */}
           <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <span className="text-xs font-bold text-gray-800">ปิดยอดล่าสุด</span>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-xs font-bold text-gray-800">ปิดกะวันนี้</span>
+              {todayStatus && <span className="text-[10px] text-gray-400">{String(todayStatus.businessDate).slice(0, 10)}</span>}
             </div>
-            {latestClosing ? (
+            {todayStatus && todayStatus.shifts.length > 0 ? (
+              <div className="flex flex-col">
+                {todayStatus.shifts.map(s => (
+                  <div key={s.id} className="flex items-center gap-2.5 px-4 py-2.5 border-b border-gray-50 last:border-0">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color || "#9ca3af" }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">
+                        {s.name}{" "}
+                        <span className="text-[10px] font-normal text-gray-400">
+                          {s.startTime.slice(0, 5)}{s.endTime ? `–${s.endTime.slice(0, 5)}` : ""}
+                        </span>
+                      </p>
+                      <p className="text-[10px] text-gray-400 truncate mt-0.5">
+                        {s.closing
+                          ? `ปิดโดย ${s.closing.closedByName ?? "–"} · ${formatTime(s.closing.createdAt)}`
+                          : s.scheduledStaff.length > 0
+                            ? `เวร: ${s.scheduledStaff.join(", ")}`
+                            : "ยังไม่จัดเวร"}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                      {s.closing ? (
+                        <>
+                          <span className="text-xs font-bold text-gray-900">{formatCurrency(s.closing.shiftCash, country)}</span>
+                          <span className={`text-[9px] font-bold ${s.closing.difference === 0 ? "text-emerald-600" : s.closing.difference > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                            {s.closing.difference === 0 ? "ยอดตรง" : `${s.closing.difference > 0 ? "+" : "-"}${formatCurrency(Math.abs(s.closing.difference), country)}`}
+                          </span>
+                        </>
+                      ) : s.isCurrent ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">กำลังเปิด</span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-100">รอปิด</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : latestClosing ? (
               <div className="p-4 flex flex-col gap-1">
                 <p className="text-lg font-bold">{formatCurrency(Number(latestClosing.countedAmount), country)}</p>
                 <p className="text-[10px] text-gray-400">{latestClosing.businessDate}{latestClosing.shiftName ? ` · ${latestClosing.shiftName}` : ""}</p>
@@ -556,9 +610,14 @@ export default function DashboardPage() {
             ) : (
               <div className="p-4 text-xs text-gray-400">ยังไม่มีการปิดยอด</div>
             )}
-            <Link href={`/dashboard/cash-closing${q}`} className="block text-center text-[10px] font-semibold border-t border-gray-100 py-2 hover:bg-gray-50">
-              ปิดยอดใหม่
-            </Link>
+            <div className="flex border-t border-gray-100 mt-auto">
+              <Link href={`/dashboard/cash-closing${q}`} className="flex-1 text-center text-[10px] font-semibold py-2 hover:bg-gray-50">
+                ปิดยอดใหม่
+              </Link>
+              <Link href={`/dashboard/cash-closing/history${q}`} className="flex-1 text-center text-[10px] font-semibold py-2 border-l border-gray-100 text-gray-500 hover:bg-gray-50">
+                ประวัติ
+              </Link>
+            </div>
           </div>
         </div>
 

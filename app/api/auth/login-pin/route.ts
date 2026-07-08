@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import jwt from "jsonwebtoken";
 import { verifyStoreNameAndPin } from "@/lib/pin";
+import { isRateLimited, getClientIp } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
   try {
+    if (isRateLimited(`login-pin:${getClientIp(request)}`, 20, 15 * 60 * 1000)) {
+      return NextResponse.json({ error: "มีการพยายามเข้าสู่ระบบบ่อยเกินไป กรุณาลองใหม่ภายหลัง" }, { status: 429 });
+    }
+
     const { storeName, pin, remember } = await request.json();
 
     if (!storeName || !pin) {

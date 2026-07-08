@@ -107,6 +107,8 @@ function CashClosingContent() {
 
   const expectedAmount = data ? data.openingFloat + (Number(cashSales) || 0) - data.withdrawalsTotal : 0;
   const difference = countedAmount - expectedAmount;
+  // เงินสดที่กะนี้ทำได้จริง = ยอดที่นับ − เงินตั้งต้นที่รับต่อมา + เงินที่ถูกเบิกออกระหว่างกะ
+  const shiftCash = data ? countedAmount - data.openingFloat + data.withdrawalsTotal : 0;
   const hasCounted = countMethod === "quick" ? quickCounted !== "" : Object.values(denomQty).some(q => q > 0);
 
   const selectedShift = data?.shifts.find(s => s.id === selectedShiftId) ?? null;
@@ -313,6 +315,14 @@ function CashClosingContent() {
 
           {/* ผลต่าง */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">เงินสดที่ได้จากกะนี้</span>
+              {!hasCounted ? (
+                <span className="text-sm text-gray-300">—</span>
+              ) : (
+                <span className="text-sm font-bold text-gray-900">{formatCurrency(shiftCash, country)}</span>
+              )}
+            </div>
             <div className="flex items-center justify-between text-sm text-gray-500">
               <span>ยอดที่ควรมี</span>
               <span className="font-semibold text-gray-700">{formatCurrency(expectedAmount, country)}</span>

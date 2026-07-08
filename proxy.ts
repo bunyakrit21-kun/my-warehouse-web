@@ -2,25 +2,40 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Max-Age": "86400",
-};
+// CORS: อนุญาตเฉพาะ origin ใน env CORS_ALLOWED_ORIGINS (คั่นด้วย comma) เท่านั้น
+// - เว็บปกติเรียก API จาก origin เดียวกัน → ไม่ต้องใช้ CORS อยู่แล้ว
+// - แอป native (iOS/Android) ไม่บังคับ CORS → ไม่ต้องตั้งค่า
+// - ถ้ามี webview/เว็บ origin อื่นต้องเรียก API ให้เพิ่ม origin นั้นใน env
+const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function corsHeadersFor(origin: string | null): Record<string, string> | null {
+  if (!origin || !ALLOWED_ORIGINS.includes(origin)) return null;
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const corsHeaders = corsHeadersFor(request.headers.get("origin"));
 
   // CORS preflight
   if (request.method === "OPTIONS") {
-    return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+    return new NextResponse(null, { status: 204, headers: corsHeaders ?? undefined });
   }
 
-  // เพิ่ม CORS headers ให้ทุก API response
   if (pathname.startsWith("/api/")) {
     const response = NextResponse.next();
-    Object.entries(CORS_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
+    if (corsHeaders) {
+      Object.entries(corsHeaders).forEach(([k, v]) => response.headers.set(k, v));
+    }
     return response;
   }
 

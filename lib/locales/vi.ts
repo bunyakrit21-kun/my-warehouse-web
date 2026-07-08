@@ -65,6 +65,8 @@ const vi: Record<LocaleKeys, string> = {
   cashClosingAlertsTitle: "Chốt ca cần xem xét",
   cashClosingAlertBadge: "Cần xem xét",
   scheduleMismatchLabel: "Không đúng lịch",
+  shiftCashLabel: "Tiền mặt của ca này",
+  countedTotalLabel: "Tổng tiền đếm cả két",
   discrepancyAmountLabel: "Số tiền không khớp",
   acknowledgeBtn: "Xác nhận",
   noCashClosingAlerts: "Không có gì cần xem xét",

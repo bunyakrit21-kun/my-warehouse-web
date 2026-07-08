@@ -21,23 +21,6 @@ function shiftInWindow(s: ShiftRow, nowMinutes: number): boolean {
   return start <= end ? nowMinutes >= start && nowMinutes < end : nowMinutes >= start || nowMinutes < end;
 }
 
-/**
- * Whether `shiftId` is the store's last shift of the business day, chronologically
- * by start_time (not sort_order, which is just insertion order and may not match
- * the actual shift sequence). Only the last shift's closing represents cash that
- * actually gets pulled from the register at end of day — see postCashClosingTransaction
- * in lib/accounting.ts — earlier same-day shifts are handoff checkpoints only.
- *
- * A store with 0-1 shifts configured, or a closing made with no shift at all
- * (shiftId null), always counts as "last" — preserves the pre-multi-shift behavior
- * of posting every closing to the ledger.
- */
-export function isLastShiftOfDay(shifts: ShiftRow[], shiftId: number | null): boolean {
-  if (!shiftId || shifts.length <= 1) return true;
-  const last = [...shifts].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)).at(-1);
-  return last?.id === shiftId;
-}
-
 /** Finds which of the store's shifts the current time falls into; falls back to the nearest preceding shift. */
 export async function detectCurrentShift(storeId: string, timezone: string): Promise<{ shift: ShiftRow | null; shifts: ShiftRow[] }> {
   const shifts = await sql<ShiftRow[]>`

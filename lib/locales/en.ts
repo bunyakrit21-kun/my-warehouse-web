@@ -65,6 +65,8 @@ const en: Record<LocaleKeys, string> = {
   cashClosingAlertsTitle: "Cash closings needing review",
   cashClosingAlertBadge: "Needs review",
   scheduleMismatchLabel: "Not on schedule",
+  shiftCashLabel: "This shift's cash",
+  countedTotalLabel: "Full drawer count",
   discrepancyAmountLabel: "Amount mismatch",
   acknowledgeBtn: "Acknowledge",
   noCashClosingAlerts: "Nothing needs review",

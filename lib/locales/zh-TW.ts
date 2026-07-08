@@ -65,6 +65,8 @@ const zhTW: Record<LocaleKeys, string> = {
   cashClosingAlertsTitle: "需要覆核的結算紀錄",
   cashClosingAlertBadge: "待覆核",
   scheduleMismatchLabel: "與排班不符",
+  shiftCashLabel: "本班現金",
+  countedTotalLabel: "全抽屜清點總額",
   discrepancyAmountLabel: "金額不符",
   acknowledgeBtn: "確認已知悉",
   noCashClosingAlerts: "目前沒有需要覆核的項目",

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
-import { getUser, resolveStoreId } from "@/lib/auth";
+import { getUser, resolveStoreId, hasValidStepUp } from "@/lib/auth";
 
 const VALID_TYPES = ["cash", "bank", "e-wallet", "other"];
 
@@ -9,6 +9,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (!(await hasValidStepUp(user.id))) {
+    return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านที่หน้าบัญชีก่อนแก้ไขข้อมูล" }, { status: 403 });
+  }
 
   try {
     const [existing] = await sql`SELECT store_id, is_system FROM accounts WHERE id = ${id} AND archived_at IS NULL`;
@@ -42,6 +45,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (!(await hasValidStepUp(user.id))) {
+    return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านที่หน้าบัญชีก่อนแก้ไขข้อมูล" }, { status: 403 });
+  }
 
   try {
     const [existing] = await sql`SELECT store_id, is_default_cash, is_system FROM accounts WHERE id = ${id} AND archived_at IS NULL`;

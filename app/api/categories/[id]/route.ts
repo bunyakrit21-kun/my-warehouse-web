@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
-import { getUser, resolveStoreId } from "@/lib/auth";
+import { getUser, resolveStoreId, hasValidStepUp } from "@/lib/auth";
 
 // System categories can be renamed but not deleted; custom categories can be both.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -8,6 +8,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (!(await hasValidStepUp(user.id))) {
+    return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านที่หน้าบัญชีก่อนแก้ไขข้อมูล" }, { status: 403 });
+  }
 
   try {
     const [existing] = await sql`SELECT store_id FROM transaction_categories WHERE id = ${id}`;
@@ -35,6 +38,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (!(await hasValidStepUp(user.id))) {
+    return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านที่หน้าบัญชีก่อนแก้ไขข้อมูล" }, { status: 403 });
+  }
 
   try {
     const [existing] = await sql`SELECT store_id, is_system FROM transaction_categories WHERE id = ${id}`;

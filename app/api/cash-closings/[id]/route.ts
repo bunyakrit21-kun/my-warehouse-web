@@ -128,7 +128,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       // spec-07 section 5.2: corrections flow one-way from cash_closings into the ledger.
       // Nudge the linked transaction (if any — only the day's last-shift closing has one,
-      // see isLastShiftOfDay) by the same amount the count changed by.
+      // postings are balance-relative) by the same amount the count changed by.
       if (changes.countedAmount) {
         const countedAmountDelta = Number(countedAmount) - Number(row.counted_amount);
         await syncCashClosingTransaction(sql, Number(id), countedAmountDelta);

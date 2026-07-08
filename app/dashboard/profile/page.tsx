@@ -76,8 +76,8 @@ export default function ProfilePage() {
       setPwMsg({ type: "err", text: t("passwordMismatch") });
       return;
     }
-    if (newPassword.length < 6) {
-      setPwMsg({ type: "err", text: t("passwordMinChars") });
+    if (newPassword.length < 8 || !/\d/.test(newPassword)) {
+      setPwMsg({ type: "err", text: t("passwordMinCharsStrong") });
       return;
     }
     setChangingPw(true);
@@ -109,7 +109,7 @@ export default function ProfilePage() {
 
   const pwStrength = (() => {
     if (!newPassword) return null;
-    if (newPassword.length < 6) return { label: t("pwWeak"), color: "bg-red-400", w: "w-1/4" };
+    if (newPassword.length < 8 || !/\d/.test(newPassword)) return { label: t("pwWeak"), color: "bg-red-400", w: "w-1/4" };
     if (newPassword.length < 10) return { label: t("pwMedium"), color: "bg-yellow-400", w: "w-1/2" };
     if (/[A-Z]/.test(newPassword) && /[0-9]/.test(newPassword)) return { label: t("pwStrong"), color: "bg-green-500", w: "w-full" };
     return { label: t("pwGood"), color: "bg-blue-400", w: "w-3/4" };
@@ -247,6 +247,7 @@ export default function ProfilePage() {
                   <p className="text-[10px] text-gray-400 mt-1">{pwStrength.label}</p>
                 </div>
               )}
+              <p className="text-[11px] text-gray-400 mt-1">{t("passwordMinCharsStrong")}</p>
             </div>
 
             {/* Confirm password */}

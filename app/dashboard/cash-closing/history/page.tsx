@@ -11,6 +11,8 @@ interface ClosingRow {
   id: number;
   businessDate: string;
   countedAmount: string;
+  openingFloat: string;
+  withdrawalsTotal: string;
   countMethod: "quick" | "detailed";
   difference: string;
   discrepancyReason: string | null;
@@ -216,6 +218,8 @@ function CashClosingHistoryContent() {
               <div className="flex flex-col gap-2">
                 {rows.map(r => {
                   const diff = Number(r.difference);
+                  // ยอดที่กะนี้ทำได้เอง (นับแบบสะสมทั้งลิ้นชัก จึงต้องหักยอดตั้งต้นและบวกเงินที่เบิกออก)
+                  const shiftCash = Number(r.countedAmount) - Number(r.openingFloat) + Number(r.withdrawalsTotal);
                   return (
                     <button
                       key={r.id}
@@ -225,6 +229,10 @@ function CashClosingHistoryContent() {
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-gray-800 truncate">
                           {r.businessDate.slice(0, 10)} · {r.shiftName ?? "-"} · {r.closedByName ?? "-"}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {t("shiftCashLabel")}: <span className="font-bold text-gray-600">{formatCurrency(shiftCash, country)}</span>
+                          {" · "}{t("countedTotalLabel")}: {formatCurrency(Number(r.countedAmount), country)}
                         </p>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           {r.scheduleMismatch && (
