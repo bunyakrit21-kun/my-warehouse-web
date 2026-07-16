@@ -23,7 +23,6 @@ export async function GET(request: Request) {
         m.type,
         m.qty,
         m.note,
-        m.employee_pin,
         p.name AS product_name,
         p.unit,
         u.name AS employee_name

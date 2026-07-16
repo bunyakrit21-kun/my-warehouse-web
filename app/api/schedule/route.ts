@@ -32,7 +32,7 @@ export async function GET(request: Request) {
         AND se.work_date < ${weekStart}::date + (${days} || ' days')::interval
     `,
     sql`
-      SELECT id, name, pin, duty FROM users
+      SELECT id, name, duty FROM users
       WHERE store_id = ${storeId} AND active = true
       ORDER BY name
     `,
@@ -45,6 +45,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (user.role !== "admin" && user.role !== "manager") {
+    return NextResponse.json({ error: "ไม่มีสิทธิ์จัดตารางเวร" }, { status: 403 });
+  }
 
   const { storeId: bodyStoreId, workDate, shiftId, userId, duty } = await request.json();
   if (!workDate || !shiftId || !userId) return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
@@ -69,6 +73,9 @@ export async function PATCH(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    if (user.role !== "admin" && user.role !== "manager") {
+      return NextResponse.json({ error: "ไม่มีสิทธิ์จัดตารางเวร" }, { status: 403 });
+    }
     const { id, storeId: bodyStoreId, checkedIn, duty } = await request.json();
     const storeId = await resolveStoreId(user, bodyStoreId);
     if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
@@ -98,6 +105,9 @@ export async function DELETE(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  if (user.role !== "admin" && user.role !== "manager") {
+    return NextResponse.json({ error: "ไม่มีสิทธิ์จัดตารางเวร" }, { status: 403 });
+  }
   const { id, storeId: bodyStoreId } = await request.json();
   const storeId = await resolveStoreId(user, bodyStoreId);
   if (!storeId) return NextResponse.json({ error: "กรุณาระบุร้าน" }, { status: 400 });
