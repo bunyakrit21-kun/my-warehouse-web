@@ -42,11 +42,14 @@ interface ScheduleEntry {
   name: string;
 }
 
+interface ClosedDay { businessDate: string; reason: string | null; }
+
 interface Overview {
   month: string;
   shifts: ShiftConfig[];
   closings: ClosingRow[];
   schedule: ScheduleEntry[];
+  closedDays: ClosedDay[];
 }
 
 const REASONS = [
@@ -100,7 +103,7 @@ function summarizeByShift(rows: ClosingRow[]): ShiftStat[] {
 }
 
 /** สถานะของวัน: closed = ปิดร้านแล้ว, partial = ปิดบางกะ, missed = วันที่ผ่านแล้วแต่ไม่มีการปิดเลย */
-type DayStatus = "closed" | "partial" | "missed" | "future" | "empty";
+type DayStatus = "closed" | "partial" | "missed" | "dayoff" | "future" | "empty";
 
 function CashClosingHistoryContent() {
   const router = useRouter();
@@ -125,9 +128,25 @@ function CashClosingHistoryContent() {
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
+  // เคลียร์วันค้างปิดยอด
+  const [unclosedSet, setUnclosedSet] = useState<Set<string>>(new Set());
+  const [resolveDay, setResolveDay] = useState<string | null>(null);
+  const [resolveMode, setResolveMode] = useState<"backfill" | "dayoff">("backfill");
+  const [backfillSales, setBackfillSales] = useState("");
+  const [dayoffReason, setDayoffReason] = useState("");
+  const [resolveBusy, setResolveBusy] = useState(false);
+  const [resolveErr, setResolveErr] = useState("");
+
   const load = useCallback(async (sid: string, m: string) => {
-    const res = await fetch(`/api/cash-closings/overview?storeId=${sid}&month=${m}`);
+    const [res, uRes] = await Promise.all([
+      fetch(`/api/cash-closings/overview?storeId=${sid}&month=${m}`),
+      fetch(`/api/cash-closings/unclosed?storeId=${sid}`),
+    ]);
     if (res.ok) setOverview(await res.json());
+    if (uRes.ok) {
+      const u = await uRes.json();
+      setUnclosedSet(new Set((u.days ?? []).map((d: { businessDate: string }) => d.businessDate)));
+    }
   }, []);
 
   useEffect(() => {
@@ -247,33 +266,78 @@ function CashClosingHistoryContent() {
     byDay.set(key, [...(byDay.get(key) ?? []), c]);
   }
 
+  const closedDaySet = new Set((overview?.closedDays ?? []).map(d => d.businessDate));
   const todayStr = new Date().toISOString().slice(0, 10);
   const [yy, mm] = month.split("-").map(Number);
   const daysInMonth = new Date(yy, mm, 0).getDate();
   const firstClosingDay = closings.length > 0 ? closings.map(c => c.businessDate.slice(0, 10)).sort()[0] : null;
 
   const dayStatus = (dateStr: string): DayStatus => {
+    if (closedDaySet.has(dateStr)) return "dayoff";
     const list = byDay.get(dateStr);
     if (list && list.length > 0) return list.some(c => c.isDayClose) ? "closed" : "partial";
     if (dateStr >= todayStr) return "future";
-    // วันในอดีตที่ไม่มีการปิดเลย — นับเป็น "พลาด" เฉพาะช่วงที่ร้านเริ่มใช้ระบบแล้ว
     if (firstClosingDay && dateStr >= firstClosingDay) return "missed";
     return "empty";
   };
+  // วันค้างปิดยอด — ใช้รายการจากเซิร์ฟเวอร์ (นับเฉพาะวันที่มีเงินสดเคลื่อนไหวจริง)
+  const isUnclosed = (ds: string) => unclosedSet.has(ds);
 
   // วันที่จะแสดงเป็นการ์ด: วันที่มีข้อมูล + วันที่พลาด (ใหม่→เก่า)
   const cardDays: string[] = [];
   for (let d = daysInMonth; d >= 1; d--) {
     const ds = `${month}-${String(d).padStart(2, "0")}`;
     const st = dayStatus(ds);
-    if (st === "closed" || st === "partial" || st === "missed") cardDays.push(ds);
+    if (st === "closed" || st === "partial" || st === "missed" || st === "dayoff") cardDays.push(ds);
   }
 
   const scheduleFor = (dateStr: string, shiftId: number) =>
     schedule.filter(s => s.workDate.slice(0, 10) === dateStr && s.shiftId === shiftId).map(s => s.name);
 
   const STATUS_DOT: Record<DayStatus, string> = {
-    closed: "bg-emerald-500", partial: "bg-amber-400", missed: "bg-red-400", future: "bg-gray-100", empty: "bg-gray-100",
+    closed: "bg-emerald-500", partial: "bg-amber-400", missed: "bg-red-400", dayoff: "bg-gray-300", future: "bg-gray-100", empty: "bg-gray-100",
+  };
+
+  const openResolve = (ds: string) => {
+    setResolveDay(ds); setResolveMode("backfill");
+    setBackfillSales(""); setDayoffReason(""); setResolveErr("");
+  };
+
+  const submitBackfill = async () => {
+    if (!resolveDay || resolveBusy) return;
+    setResolveErr(""); setResolveBusy(true);
+    const res = await fetch("/api/cash-closings/backfill", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId, businessDate: resolveDay, cashSales: Number(backfillSales) || 0 }),
+    });
+    const data = await res.json();
+    setResolveBusy(false);
+    if (!res.ok) return setResolveErr(data.error || "เกิดข้อผิดพลาด");
+    setResolveDay(null);
+    if (storeId) await load(storeId, month);
+  };
+
+  const submitDayoff = async () => {
+    if (!resolveDay || resolveBusy) return;
+    setResolveErr(""); setResolveBusy(true);
+    const res = await fetch("/api/cash-closings/closed-day", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId, businessDate: resolveDay, reason: dayoffReason || null }),
+    });
+    const data = await res.json();
+    setResolveBusy(false);
+    if (!res.ok) return setResolveErr(data.error || "เกิดข้อผิดพลาด");
+    setResolveDay(null);
+    if (storeId) await load(storeId, month);
+  };
+
+  const undoDayoff = async (ds: string) => {
+    if (!window.confirm("ยกเลิกเครื่องหมายวันหยุดของวันนี้?")) return;
+    await fetch("/api/cash-closings/closed-day", {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId, businessDate: ds }),
+    });
+    if (storeId) await load(storeId, month);
   };
 
   const renderDayCard = (ds: string) => {
@@ -303,9 +367,26 @@ function CashClosingHistoryContent() {
             <p className="text-xs font-bold text-gray-700">{formatCurrency(dayTotal, country)}</p>
           )}
         </div>
+        {isUnclosed(ds) && (
+          <div className="px-4 py-3 bg-red-50 border-b border-red-100 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-bold text-red-600">⚠️ วันนี้ยังไม่ได้ปิดยอด — เคลียร์ก่อนจึงจะทำรายการวันใหม่ได้</p>
+            <div className="flex gap-2">
+              <button onClick={() => openResolve(ds)}
+                className="text-[11px] font-bold text-white bg-black rounded-lg px-2.5 py-1 hover:bg-gray-800">ปิดยอดย้อนหลัง</button>
+              <button onClick={() => { setResolveDay(ds); setResolveMode("dayoff"); setDayoffReason(""); setResolveErr(""); }}
+                className="text-[11px] font-bold text-gray-600 border border-gray-300 rounded-lg px-2.5 py-1 hover:border-black">วันหยุด/ร้านปิด</button>
+            </div>
+          </div>
+        )}
+        {dayStatus(ds) === "dayoff" && (
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-500">🏖️ ร้านปิด/วันหยุด{(overview?.closedDays.find(d => d.businessDate === ds)?.reason) ? ` · ${overview?.closedDays.find(d => d.businessDate === ds)?.reason}` : ""}</p>
+            <button onClick={() => undoDayoff(ds)} className="text-[11px] font-bold text-gray-400 hover:text-red-500">ยกเลิก</button>
+          </div>
+        )}
         <div className="flex flex-col">
-          {list.length === 0 && (
-            <p className="px-4 py-3 text-xs text-red-500 font-semibold">ไม่มีการปิดยอดวันนี้</p>
+          {list.length === 0 && dayStatus(ds) !== "dayoff" && !isUnclosed(ds) && (
+            <p className="px-4 py-3 text-xs text-gray-400">ไม่มีการปิดยอดวันนี้</p>
           )}
           {list.map(c => {
             const diff = Number(c.difference);
@@ -383,6 +464,20 @@ function CashClosingHistoryContent() {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 pt-6 flex flex-col gap-4">
+        {/* แบนเนอร์เตือนวันค้างปิดยอด (ทั้งเดือน) */}
+        {(() => {
+          const pending = cardDays.filter(isUnclosed);
+          if (pending.length === 0) return null;
+          return (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-sm font-bold text-red-700">⚠️ มี {pending.length} วันค้างปิดยอด</p>
+              <p className="text-[11px] text-red-500 mt-0.5">
+                ระบบหยุดรับรายการใหม่จนกว่าจะเคลียร์ครบ — กดวันด้านล่างที่มีเครื่องหมายเตือน เพื่อปิดยอดย้อนหลังหรือทำเครื่องหมายวันหยุด
+              </p>
+            </div>
+          );
+        })()}
+
         {/* เลือกเดือน + สลับมุมมอง */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1">
@@ -427,6 +522,7 @@ function CashClosingHistoryContent() {
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> ปิดร้านแล้ว</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> ปิดบางกะ</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400" /> ไม่ได้ปิด</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300" /> ร้านปิด/วันหยุด</span>
               </div>
             </div>
             {selectedDay && renderDayCard(selectedDay)}
@@ -461,6 +557,55 @@ function CashClosingHistoryContent() {
           </>
         )}
       </div>
+
+      {/* Resolve unclosed-day Modal */}
+      {resolveDay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) setResolveDay(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <p className="font-bold text-gray-900 text-lg">เคลียร์วันค้างปิดยอด</p>
+            <p className="text-xs text-gray-400 mt-0.5 mb-4">{resolveDay}</p>
+
+            <div className="flex bg-gray-100 rounded-xl p-1 mb-4 text-xs font-bold">
+              <button onClick={() => setResolveMode("backfill")}
+                className={`flex-1 py-2 rounded-lg transition-all ${resolveMode === "backfill" ? "bg-white shadow text-black" : "text-gray-400"}`}>ปิดยอดย้อนหลัง</button>
+              <button onClick={() => setResolveMode("dayoff")}
+                className={`flex-1 py-2 rounded-lg transition-all ${resolveMode === "dayoff" ? "bg-white shadow text-black" : "text-gray-400"}`}>วันหยุด/ร้านปิด</button>
+            </div>
+
+            {resolveMode === "backfill" ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1.5">ยอดขายเงินสดของวันนั้น</label>
+                  <input type="number" min={0} inputMode="decimal" value={backfillSales} onChange={e => setBackfillSales(e.target.value)}
+                    placeholder="0" autoFocus
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-lg font-semibold text-center outline-none focus:border-black focus:bg-white" />
+                  <p className="text-[11px] text-gray-400 mt-1.5">ใส่ยอดขายเงินสดที่จำได้ของวันนั้น — จะบันทึกปิดร้านย้อนหลังและลงบัญชีเป็นรายรับ</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1.5">เหตุผล (ไม่บังคับ)</label>
+                  <input type="text" value={dayoffReason} onChange={e => setDayoffReason(e.target.value)}
+                    placeholder="เช่น ร้านปิด, วันหยุด, ไม่ได้เปิดขาย"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none focus:border-black focus:bg-white" />
+                  <p className="text-[11px] text-gray-400 mt-1.5">วันนี้จะถูกทำเครื่องหมายว่าร้านปิด — ไม่นับเป็นวันค้าง และไม่ลงบัญชี</p>
+                </div>
+              </div>
+            )}
+
+            {resolveErr && <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 mt-3">{resolveErr}</p>}
+
+            <div className="flex gap-2 mt-5">
+              <button type="button" onClick={() => setResolveDay(null)} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-gray-400">ยกเลิก</button>
+              <button type="button" onClick={resolveMode === "backfill" ? submitBackfill : submitDayoff} disabled={resolveBusy}
+                className="flex-1 rounded-xl bg-black text-white py-2.5 text-sm font-bold hover:bg-gray-800 disabled:opacity-50">
+                {resolveBusy ? "กำลังบันทึก..." : "ยืนยัน"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editRow && (

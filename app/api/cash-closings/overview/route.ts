@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const monthStart = `${month}-01`;
 
   try {
-    const [shifts, closings, schedule] = await Promise.all([
+    const [shifts, closings, schedule, closedDays] = await Promise.all([
       sql`
         SELECT id, name, start_time as "startTime", end_time as "endTime", color
         FROM shifts WHERE store_id = ${storeId} ORDER BY start_time ASC
@@ -58,9 +58,16 @@ export async function GET(request: Request) {
           AND se.work_date >= ${monthStart}::date
           AND se.work_date < (${monthStart}::date + interval '1 month')
       `,
+      sql`
+        SELECT TO_CHAR(business_date, 'YYYY-MM-DD') as "businessDate", reason
+        FROM store_closed_days
+        WHERE store_id = ${storeId}
+          AND business_date >= ${monthStart}::date
+          AND business_date < (${monthStart}::date + interval '1 month')
+      `,
     ]);
 
-    return NextResponse.json({ month, shifts, closings, schedule });
+    return NextResponse.json({ month, shifts, closings, schedule, closedDays });
   } catch {
     return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
   }

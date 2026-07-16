@@ -3,7 +3,7 @@ import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
 import { getCurrentBusinessDate } from "@/lib/businessDay";
 import { verifyStorePin } from "@/lib/pin";
-import { getOverdueShiftInfo } from "@/lib/cashClosing";
+import { getOverdueShiftInfo, getUnclosedDays } from "@/lib/cashClosing";
 
 const VALID_TYPES = ["MOVE_IN", "MOVE_OUT"] as const;
 
@@ -83,6 +83,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
     }
     const employee = pinResult.user;
+
+    // บล็อกวันใหม่ถ้ามีวันเก่าค้างปิดยอด — เจ้าของต้องเคลียร์ก่อน (ปิดย้อนหลัง/ทำเครื่องหมายวันหยุด)
+    const unclosed = await getUnclosedDays(storeId);
+    if (unclosed.length > 0) {
+      const d = unclosed[0].businessDate;
+      return NextResponse.json(
+        { error: `มีวันค้างปิดยอด (${d}) เจ้าของร้านต้องเคลียร์ที่หน้าประวัติปิดยอดก่อนจึงจะทำรายการต่อได้`, unclosedDays: unclosed.map(u => u.businessDate) },
+        { status: 409 }
+      );
+    }
 
     // Block new stock movements once a shift has ended without its drawer being
     // counted — same rule the movement screen shows as a banner, enforced here too

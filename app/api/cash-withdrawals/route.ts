@@ -5,6 +5,7 @@ import { getCurrentBusinessDate } from "@/lib/businessDay";
 import { verifyStorePin } from "@/lib/pin";
 import { createThumbnail } from "@/lib/image-thumbnail";
 import { postWithdrawalTransaction } from "@/lib/accounting";
+import { getUnclosedDays } from "@/lib/cashClosing";
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -53,6 +54,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
     }
     const employee = pinResult.user;
+
+    // บล็อกวันใหม่ถ้ามีวันเก่าค้างปิดยอด — เจ้าของต้องเคลียร์ก่อน (ปิดย้อนหลัง/ทำเครื่องหมายวันหยุด)
+    const unclosed = await getUnclosedDays(storeId);
+    if (unclosed.length > 0) {
+      const d = unclosed[0].businessDate;
+      return NextResponse.json(
+        { error: `มีวันค้างปิดยอด (${d}) เจ้าของร้านต้องเคลียร์ที่หน้าประวัติปิดยอดก่อนจึงจะทำรายการต่อได้`, unclosedDays: unclosed.map(u => u.businessDate) },
+        { status: 409 }
+      );
+    }
 
     const businessDate = await getCurrentBusinessDate(storeId);
     const photoThumbnail = photo ? await createThumbnail(photo) : null;

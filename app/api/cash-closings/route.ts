@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { getUser, resolveStoreId } from "@/lib/auth";
-import { getCashClosingExpected } from "@/lib/cashClosing";
+import { getCashClosingExpected, getUnclosedDays } from "@/lib/cashClosing";
 import { verifyStorePin } from "@/lib/pin";
 import { postCashClosingTransaction, postDayCloseTransfer } from "@/lib/accounting";
 
@@ -43,6 +43,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "PIN ไม่ถูกต้อง" }, { status: 401 });
     }
     const employee = pinResult.user;
+
+    // ปิดยอดวันปัจจุบันไม่ได้ถ้ายังมีวันเก่าค้าง — เจ้าของต้องเคลียร์วันเก่าก่อน (ปิดย้อนหลัง/วันหยุด)
+    const unclosed = await getUnclosedDays(storeId);
+    if (unclosed.length > 0) {
+      return NextResponse.json(
+        { error: `มีวันค้างปิดยอด (${unclosed[0].businessDate}) เจ้าของร้านต้องเคลียร์ที่หน้าประวัติปิดยอดก่อน`, unclosedDays: unclosed.map(u => u.businessDate) },
+        { status: 409 }
+      );
+    }
 
     const { businessDate, shift, shifts, openingFloat, withdrawalsTotal, drawerFloat, suggestDayClose } = await getCashClosingExpected(storeId);
     const salesNum = Number(cashSales) || 0;

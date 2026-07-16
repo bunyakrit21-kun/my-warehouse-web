@@ -107,6 +107,7 @@ export default function MovementPage() {
   const [storeId, setStoreId] = useState("");
   const [country, setCountry] = useState(DEFAULT_COUNTRY_CODE);
   const [overdueShiftName, setOverdueShiftName] = useState<string | null>(null);
+  const [unclosedDays, setUnclosedDays] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
     const paramProductId = searchParams.get("productId");
@@ -127,12 +128,13 @@ export default function MovementPage() {
 
       if (!resolvedStoreId) { setLoading(false); return; }
 
-      const [resP, resM, resC, resS, resO] = await Promise.all([
+      const [resP, resM, resC, resS, resO, resU] = await Promise.all([
         fetch(`/api/products?storeId=${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/movements?storeId=${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/cash-withdrawals?storeId=${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/stores/${resolvedStoreId}`, { cache: "no-store" }),
         fetch(`/api/cash-closings/overdue?storeId=${resolvedStoreId}`, { cache: "no-store" }),
+        fetch(`/api/cash-closings/unclosed?storeId=${resolvedStoreId}`, { cache: "no-store" }),
       ]);
 
       const productsData: Product[] = await resP.json();
@@ -145,6 +147,10 @@ export default function MovementPage() {
       if (resO.ok) {
         const overdueData = await resO.json();
         setOverdueShiftName(overdueData.overdue ? overdueData.shift?.name ?? null : null);
+      }
+      if (resU.ok) {
+        const u = await resU.json();
+        setUnclosedDays((u.days ?? []).map((d: { businessDate: string }) => d.businessDate));
       }
 
       setProducts(productsData);
@@ -293,6 +299,9 @@ export default function MovementPage() {
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (unclosedDays.length > 0) {
+      return alert(`มีวันค้างปิดยอด (${unclosedDays[0]}) เจ้าของร้านต้องเคลียร์ที่หน้าประวัติปิดยอดก่อน`);
+    }
     if (overdueShiftName) {
       return alert(`ถึงเวลาปิดกะ "${overdueShiftName}" แล้ว กรุณานับเงินปิดยอดก่อนทำรายการต่อ`);
     }
@@ -368,7 +377,7 @@ export default function MovementPage() {
   }
 
   const pinStr = pin.join("");
-  const canSubmit = !overdueShiftName && (isCashMode
+  const canSubmit = unclosedDays.length === 0 && !overdueShiftName && (isCashMode
     ? !!cashAmount && Number(cashAmount) > 0 && !!cashReason.trim() && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌")
     : selectedItems.length > 0 && pinStr.length === 4 && !!employeeName && !employeeName.includes("❌") && !anyOverStock);
 
@@ -432,6 +441,22 @@ export default function MovementPage() {
       </header>
 
       <section className="mx-auto max-w-6xl px-6 py-10">
+        {unclosedDays.length > 0 && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-red-500 text-white text-lg">⚠️</span>
+              <p className="text-sm font-semibold text-red-800">
+                มี {unclosedDays.length} วันค้างปิดยอด ({unclosedDays[0]}{unclosedDays.length > 1 ? " ฯลฯ" : ""}) — ระบบหยุดรับรายการใหม่ เจ้าของร้านต้องเคลียร์ก่อน
+              </p>
+            </div>
+            {!isStaff && (
+              <Link href={`/dashboard/cash-closing/history${storeId ? `?storeId=${storeId}` : ""}`}
+                className="shrink-0 rounded-xl bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600 transition-all">
+                ไปเคลียร์
+              </Link>
+            )}
+          </div>
+        )}
         {overdueShiftName && (
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
             <div className="flex items-center gap-3">

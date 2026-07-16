@@ -160,3 +160,40 @@ export async function getCashClosingExpected(storeId: string): Promise<CashClosi
 
   return { businessDate, shift, shifts, openingFloat, withdrawals, withdrawalsTotal, drawerFloat, suggestDayClose, openingFrom, openingIsNewDay };
 }
+
+export interface UnclosedDay {
+  businessDate: string;
+  hasPartialClose: boolean; // มีการปิดกะระหว่างวันแต่ยังไม่ปิดร้าน
+}
+
+/**
+ * วัน "ค้างปิดยอด": วันทำการในอดีต (ก่อนวันทำการปัจจุบัน) ที่มีความเคลื่อนไหว
+ * (ขาย/เบิก/ปิดกะ) แต่ยังไม่มีการปิดร้าน (is_day_close) และเจ้าของยังไม่ได้
+ * ทำเครื่องหมายว่าเป็นวันหยุด/ร้านปิด — เรียงจากเก่าสุดไปใหม่สุด
+ *
+ * ใช้บล็อกไม่ให้ทำรายการวันใหม่จนกว่าเจ้าของจะเคลียร์ (ปิดย้อนหลัง หรือทำเครื่องหมายวันหยุด)
+ */
+export async function getUnclosedDays(storeId: string): Promise<UnclosedDay[]> {
+  const businessDate = await getCurrentBusinessDate(storeId);
+  const rows = await sql<{ business_date: string; has_partial: boolean }[]>`
+    WITH activity AS (
+      -- เฉพาะวันที่มีเงินสดเคลื่อนไหวจริง (ปิดกะ/เบิกเงิน) — รับของเข้าสต็อกอย่างเดียวไม่ถือเป็นวันต้องปิดยอด
+      SELECT business_date FROM cash_withdrawals WHERE store_id = ${storeId}
+      UNION SELECT business_date FROM cash_closings WHERE store_id = ${storeId}
+    )
+    SELECT DISTINCT a.business_date::text AS business_date,
+      EXISTS (SELECT 1 FROM cash_closings c WHERE c.store_id = ${storeId} AND c.business_date = a.business_date) AS has_partial
+    FROM activity a
+    WHERE a.business_date < ${businessDate}::date
+      AND NOT EXISTS (
+        SELECT 1 FROM cash_closings c
+        WHERE c.store_id = ${storeId} AND c.business_date = a.business_date AND c.is_day_close = true
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM store_closed_days d
+        WHERE d.store_id = ${storeId} AND d.business_date = a.business_date
+      )
+    ORDER BY a.business_date ASC
+  `;
+  return rows.map(r => ({ businessDate: r.business_date, hasPartialClose: r.has_partial }));
+}
