@@ -52,16 +52,19 @@ export default async function proxy(request: NextRequest) {
 
     if (payload.type === "staff") {
       if (payload.role === "manager") {
-        // ผู้จัดการเข้าได้ทุกหน้า ยกเว้น /dashboard/stores และ /dashboard/accounting (เจ้าของร้าน/admin เท่านั้น)
-        if (pathname.startsWith("/dashboard/stores") || pathname.startsWith("/dashboard/accounting")) {
-          return NextResponse.redirect(new URL("/dashboard/movement", request.url));
+        // ผู้จัดการเข้าได้เหมือน admin ยกเว้นหน้าจัดการ/ตั้งค่าร้าน (เจ้าของร้านเท่านั้น)
+        if (pathname.startsWith("/dashboard/stores")) {
+          return NextResponse.redirect(new URL("/dashboard", request.url));
         }
       } else {
-        // พนักงานทั่วไป → movement + fresh-check เท่านั้น (ประวัติปิดยอดเป็นของผู้จัดการ/แอดมิน)
-        const staffAllowed = ["/dashboard/movement", "/dashboard/fresh-check", "/dashboard/cash-closing", "/dashboard/shift-handoff", "/dashboard/my"];
-        const isManagerOnly = pathname.startsWith("/dashboard/cash-closing/history");
-        if (isManagerOnly || !staffAllowed.some(p => pathname.startsWith(p))) {
-          return NextResponse.redirect(new URL("/dashboard/movement", request.url));
+        // พนักงานทั่วไป: เข้าหน้าหลักได้ + หน้างานของตัวเอง แต่เมนูการเงิน/จัดการยังเข้าไม่ได้
+        const staffAllowed = [
+          "/dashboard/movement", "/dashboard/fresh-check", "/dashboard/cash-closing",
+          "/dashboard/shift-handoff", "/dashboard/my",
+        ];
+        const isHome = pathname === "/dashboard";
+        if (!isHome && !staffAllowed.some(p => pathname.startsWith(p))) {
+          return NextResponse.redirect(new URL("/dashboard", request.url));
         }
       }
     }

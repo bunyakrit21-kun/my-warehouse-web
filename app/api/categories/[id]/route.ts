@@ -7,8 +7,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
-  if (!(await hasValidStepUp(user.id))) {
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  // step-up (ยืนยันรหัสผ่านซ้ำ) ใช้กับ admin เท่านั้น — manager เข้าด้วย PIN ไม่มีรหัสผ่าน จึงข้าม
+  if (user.role === "admin" && !(await hasValidStepUp(user.id))) {
     return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านที่หน้าบัญชีก่อนแก้ไขข้อมูล" }, { status: 403 });
   }
 
@@ -37,8 +38,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
-  if (!(await hasValidStepUp(user.id))) {
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  // step-up (ยืนยันรหัสผ่านซ้ำ) ใช้กับ admin เท่านั้น — manager เข้าด้วย PIN ไม่มีรหัสผ่าน จึงข้าม
+  if (user.role === "admin" && !(await hasValidStepUp(user.id))) {
     return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านที่หน้าบัญชีก่อนแก้ไขข้อมูล" }, { status: 403 });
   }
 

@@ -4,11 +4,14 @@ import { getUser, resolveStoreId } from "@/lib/auth";
 import type postgres from "postgres";
 import { computePayroll, type PayrollLineInput } from "@/lib/payroll";
 
-async function loadPeriod(userId: number, periodId: string) {
+async function loadPeriod(user: Parameters<typeof resolveStoreId>[0], periodId: string) {
   const [period] = await sql`SELECT * FROM payroll_periods WHERE id = ${periodId}`;
   if (!period) return { error: "ไม่พบงวด", status: 404 as const };
-  const [store] = await sql`SELECT id FROM stores WHERE id = ${period.store_id} AND owner_id = ${userId}`;
-  if (!store) return { error: "ไม่มีสิทธิ์เข้าถึงงวดนี้", status: 403 as const };
+  // admin (เจ้าของ) หรือ manager ของร้านนั้นเข้าได้ — ผ่าน resolveStoreId
+  const resolved = await resolveStoreId(user, String(period.store_id));
+  if (!resolved || Number(resolved) !== period.store_id) {
+    return { error: "ไม่มีสิทธิ์เข้าถึงงวดนี้", status: 403 as const };
+  }
   return { period };
 }
 
@@ -17,9 +20,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
-  const res = await loadPeriod(user.id, id);
+  const res = await loadPeriod(user, id);
   if ("error" in res) return NextResponse.json({ error: res.error }, { status: res.status });
   const p = res.period;
 
@@ -51,9 +54,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
-  const res = await loadPeriod(user.id, id);
+  const res = await loadPeriod(user, id);
   if ("error" in res) return NextResponse.json({ error: res.error }, { status: res.status });
   const p = res.period;
 
@@ -122,9 +125,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
-  const res = await loadPeriod(user.id, id);
+  const res = await loadPeriod(user, id);
   if ("error" in res) return NextResponse.json({ error: res.error }, { status: res.status });
 
   try {

@@ -166,7 +166,13 @@ export default function DashboardPage() {
       if (!meData?.user) { router.push("/login"); return; }
       setUser(meData.user);
       setStores(storesData);
-      const first: Store | null = storesData[0] ?? null;
+      let first: Store | null = storesData[0] ?? null;
+      // พนักงาน/ผู้จัดการ (login ด้วย PIN) ไม่ได้เป็นเจ้าของร้าน — /api/stores ว่าง
+      // ใช้ร้านจาก token แทน เพื่อให้เห็นหน้าหลักของร้านตัวเอง
+      if (!first && meData.user.storeId) {
+        const s = await fetch(`/api/stores/${meData.user.storeId}`).then(r => r.ok ? r.json() : null);
+        if (s) first = { id: s.id, name: s.name, business_type: s.business_type ?? "", phone: s.phone ?? "", my_role: meData.user.role, country: s.country ?? null, logo_thumbnail: s.logo_thumbnail ?? null };
+      }
       setCurrentStore(first);
       if (first) await loadStoreData(first.id);
       setMounted(true);
@@ -358,6 +364,7 @@ export default function DashboardPage() {
                     </svg>
                     <span className="text-sm font-semibold text-gray-700">{t("profileSettings")}</span>
                   </Link>
+                  {user?.role === "admin" && (
                   <Link href="/dashboard/stores" onClick={() => setDropdownOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-gray-50 transition-all w-full text-left">
                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -365,6 +372,7 @@ export default function DashboardPage() {
                     </svg>
                     <span className="text-sm font-semibold text-gray-700">{t("manageStores")}</span>
                   </Link>
+                  )}
                   <button onClick={handleLogout}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-red-50 transition-all w-full text-left mt-1 border-t border-gray-100 pt-2">
                     <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

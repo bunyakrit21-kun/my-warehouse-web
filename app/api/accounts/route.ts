@@ -7,7 +7,7 @@ const VALID_TYPES = ["cash", "bank", "e-wallet", "other"];
 export async function GET(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
   const storeId = await resolveStoreId(user, searchParams.get("storeId"));
@@ -32,8 +32,9 @@ const DEFAULT_ICON_BY_TYPE: Record<string, string> = { cash: "cash", bank: "bank
 export async function POST(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
-  if (!(await hasValidStepUp(user.id))) {
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  // step-up (ยืนยันรหัสผ่านซ้ำ) ใช้กับ admin เท่านั้น — manager เข้าด้วย PIN ไม่มีรหัสผ่าน จึงข้าม
+  if (user.role === "admin" && !(await hasValidStepUp(user.id))) {
     return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านที่หน้าบัญชีก่อนแก้ไขข้อมูล" }, { status: 403 });
   }
 

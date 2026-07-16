@@ -8,7 +8,7 @@ const VALID_TYPES = ["income", "expense", "transfer"];
 export async function GET(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
   const storeId = await resolveStoreId(user, searchParams.get("storeId"));
@@ -45,11 +45,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  if (user.role !== "admin" && user.role !== "manager") return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   // Defense-in-depth: หน้าเว็บบังคับ step-up ก่อนเข้าหน้าบัญชีอยู่แล้ว
   // แต่ต้องบังคับที่ API ด้วย ไม่งั้นยิงตรงมาสร้างรายการโดยไม่ยืนยันรหัสผ่านได้
-  if (!(await hasValidStepUp(user.id))) {
+  // step-up (ยืนยันรหัสผ่านซ้ำ) ใช้กับ admin เท่านั้น — manager เข้าด้วย PIN ไม่มีรหัสผ่าน จึงข้าม
+  if (user.role === "admin" && !(await hasValidStepUp(user.id))) {
     return NextResponse.json({ error: "กรุณายืนยันรหัสผ่านที่หน้าบัญชีก่อนแก้ไขข้อมูล" }, { status: 403 });
   }
 
