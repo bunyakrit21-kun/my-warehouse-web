@@ -266,6 +266,10 @@ export default function DashboardPage() {
       key: "suggest", label: t("quickSuggestOrder"), href: `/dashboard/fresh-summary${q}`, box: "bg-amber-50 border-amber-100 text-amber-600",
       icon: <span className="text-xl leading-none">📊</span>,
     },
+    {
+      key: "payroll", label: "เงินเดือน", href: `/dashboard/payroll${q}`, box: "bg-indigo-50 border-indigo-100 text-indigo-600",
+      icon: <span className="text-xl leading-none">💵</span>,
+    },
   ];
 
   return (
