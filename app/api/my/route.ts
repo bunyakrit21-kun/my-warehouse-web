@@ -24,7 +24,7 @@ export async function GET(request: Request) {
         FROM schedule_entries se
         JOIN shifts s ON s.id = se.shift_id
         WHERE se.user_id = ${user.id}
-          AND se.work_date >= ${fromDate ?? sql`CURRENT_DATE - INTERVAL '30 days'`}::date
+          AND se.work_date >= ${fromDate ? sql`${fromDate}::date` : sql`(CURRENT_DATE - INTERVAL '30 days')`}
         ORDER BY se.work_date DESC, s.start_time
       `,
       sql`

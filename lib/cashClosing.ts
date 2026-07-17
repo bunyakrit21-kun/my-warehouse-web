@@ -193,7 +193,7 @@ export async function getUnclosedDays(storeId: string): Promise<UnclosedDay[]> {
         SELECT 1 FROM store_closed_days d
         WHERE d.store_id = ${storeId} AND d.business_date = a.business_date
       )
-    ORDER BY a.business_date ASC
+    ORDER BY business_date ASC
   `;
   return rows.map(r => ({ businessDate: r.business_date, hasPartialClose: r.has_partial }));
 }
